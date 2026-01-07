@@ -275,7 +275,7 @@ const ManageView = () => {
             placeholder="Search by ID or Name..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/10 focus:border-[#800000] transition-all"
+            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/10 focus:border-[#800000] transition-all text-gray-700"
           />
         </div>
         <button className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50">
@@ -364,19 +364,19 @@ const ManageView = () => {
               <div className="space-y-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">First Name</label>
-                  <input name="firstName" type="text" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/10" placeholder="e.g. Jerome" defaultValue={editingRecord?.firstName} required />
+                  <input name="firstName" type="text" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/10 text-gray-700" placeholder="e.g. Jerome" defaultValue={editingRecord?.firstName} required />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Last Name</label>
-                  <input name="lastName" type="text" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/10" placeholder="e.g. Santos" defaultValue={editingRecord?.lastName} required />
+                  <input name="lastName" type="text" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/10 text-gray-700" placeholder="e.g. Santos" defaultValue={editingRecord?.lastName} required />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Middle Name</label>
-                  <input name="middleName" type="text" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/10" placeholder="e.g. M." defaultValue={editingRecord?.middleName} />
+                  <input name="middleName" type="text" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/10 text-gray-700" placeholder="e.g. M." defaultValue={editingRecord?.middleName} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Age</label>
-                  <input name="age" type="number" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/10" placeholder="e.g. 24" defaultValue={editingRecord?.age} required />
+                  <input name="age" type="number" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/10 text-gray-700" placeholder="e.g. 24" defaultValue={editingRecord?.age} required />
                 </div>
               </div>
 

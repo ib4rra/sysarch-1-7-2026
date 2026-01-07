@@ -25,7 +25,8 @@ const LoginForm = ({ onLogin, onForgotPassword }) => {
           <input
             type="text"
             placeholder="ID Number"
-            className="w-full bg-white px-4 py-2 pr-10 rounded-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 placeholder-gray-400"
+            className="w-full bg-white px-4 py-2 pr-10 rounded-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-800"
+            style={{ color: 'rgb(31, 41, 55)' }}
             value={idNumber}
             onChange={(e) => setIdNumber(e.target.value)}
             required
@@ -37,7 +38,8 @@ const LoginForm = ({ onLogin, onForgotPassword }) => {
           <input
             type="password"
             placeholder="Password"
-            className="w-full bg-white px-4 py-2 pr-10 rounded-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 placeholder-gray-400"
+            className="w-full bg-white px-4 py-2 pr-10 rounded-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-800"
+            style={{ color: 'rgb(31, 41, 55)' }}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required

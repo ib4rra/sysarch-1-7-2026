@@ -1,13 +1,11 @@
-
 import React from 'react';
-import { Home, Users, Database, Settings, LogOut } from 'lucide-react';
+import { User, FileText, Settings, LogOut, Home } from 'lucide-react';
 
-const Sidebar = ({ activeTab, setActiveTab, onLogout }) => {
+const UserSidebar = ({ activeTab, setActiveTab, onLogout }) => {
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home },
-    { id: 'staff', label: 'Manage Staff', icon: Users },
-    { id: 'pwd', label: 'Manage PWD Users', icon: Database },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'profile', label: 'My Profile', icon: User },
+    { id: 'records', label: 'My Records', icon: FileText },
+    { id: 'settings', label: 'Account Settings', icon: Settings },
   ];
 
   return (
@@ -33,10 +31,11 @@ const Sidebar = ({ activeTab, setActiveTab, onLogout }) => {
         onClick={onLogout}
         className="flex items-center gap-4 px-6 py-4 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors mt-auto w-full"
       >
+        <LogOut size={20} />
         Logout
       </button>
     </div>
   );
 };
 
-export default Sidebar;
+export default UserSidebar;

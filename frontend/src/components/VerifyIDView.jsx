@@ -361,7 +361,7 @@ const VerifyIDView = () => {
                       placeholder="e.g. PWD-2024-001"
                       value={searchId}
                       onChange={(e) => setSearchId(e.target.value)}
-                      className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-xl text-lg font-bold focus:outline-none focus:ring-2 focus:ring-[#800000]/10 focus:border-[#800000] transition-all"
+                      className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-xl text-lg font-bold focus:outline-none focus:ring-2 focus:ring-[#800000]/10 focus:border-[#800000] transition-all text-gray-700"
                       required
                     />
                   </div>
