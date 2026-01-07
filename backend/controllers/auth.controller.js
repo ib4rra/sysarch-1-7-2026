@@ -422,3 +422,142 @@ export const refreshToken = async (req, res) => {
     });
   }
 };
+
+// ============================================
+// UNIFIED LOGIN (STAFF + PWD USERS)
+// ============================================
+
+/**
+ * Unified login endpoint - backend handles both staff and PWD users
+ * @route POST /auth/unified-login
+ * @access Public
+ */
+export const unifiedLogin = async (req, res) => {
+  try {
+    const { idNumber, password } = req.body;
+
+    if (!idNumber || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID Number and password are required',
+      });
+    }
+
+    // Try staff/admin login first
+    const [staffUsers] = await db.query(
+      `SELECT p.person_id, p.fullname, p.username, p.password_hash, 
+              p.role_id, p.email, p.is_active, r.role_name 
+       FROM Person_In_Charge p
+       JOIN roles r ON p.role_id = r.role_id
+       WHERE (p.username = ? OR p.email = ? OR p.person_id = ?)`,
+      [idNumber, idNumber, idNumber]
+    );
+
+    // If staff user found
+    if (staffUsers && staffUsers.length > 0) {
+      const user = staffUsers[0];
+
+      if (!user.is_active) {
+        return res.status(403).json({
+          success: false,
+          message: 'Account is inactive',
+        });
+      }
+
+      const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+
+      if (!isPasswordValid) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid username or password',
+        });
+      }
+
+      // Generate JWT token
+      const token = jwt.sign(
+        {
+          person_id: user.person_id,
+          username: user.username,
+          role_id: user.role_id,
+        },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRY }
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: 'Staff login successful',
+        token,
+        user: {
+          id: user.person_id,
+          username: user.username,
+          email: user.email,
+          role: user.role_name,
+          role_id: user.role_id,
+        },
+      });
+    }
+
+    // Try PWD user login
+    const [pwdUsers] = await db.query(
+      `SELECT pwd_id, fullname, surname, password_hash, is_active 
+       FROM pwd_user_login 
+       WHERE pwd_id = ?`,
+      [idNumber]
+    );
+
+    if (pwdUsers && pwdUsers.length > 0) {
+      const pwdUser = pwdUsers[0];
+
+      if (!pwdUser.is_active) {
+        return res.status(403).json({
+          success: false,
+          message: 'Account is inactive',
+        });
+      }
+
+      const isPasswordValid = await bcrypt.compare(password, pwdUser.password_hash);
+
+      if (!isPasswordValid) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid username or password',
+        });
+      }
+
+      // Generate JWT token for PWD user
+      const token = jwt.sign(
+        {
+          pwd_id: pwdUser.pwd_id,
+          role_id: 4, // PWD user role
+        },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRY }
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: 'PWD user login successful',
+        token,
+        user: {
+          id: pwdUser.pwd_id,
+          username: pwdUser.fullname,
+          role: 'pwd_user',
+          role_id: 4,
+        },
+      });
+    }
+
+    // Neither staff nor PWD user found
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid ID number or password',
+    });
+  } catch (err) {
+    console.error('Unified login error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Login failed',
+    });
+  }
+};

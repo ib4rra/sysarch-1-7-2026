@@ -30,6 +30,13 @@ router.post('/login', staffLoginValidationRules(), handleValidationErrors, AuthC
 router.post('/pwd-login', pwdLoginValidationRules(), handleValidationErrors, AuthController.pwdLogin);
 
 /**
+ * Unified Login (Both Staff and PWD Users)
+ * POST /auth/unified-login
+ * Backend handles both staff and PWD user authentication
+ */
+router.post('/unified-login', AuthController.unifiedLogin);
+
+/**
  * ============================================
  * PROTECTED ROUTES (Authentication Required)
  * ============================================
