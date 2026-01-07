@@ -1,38 +1,100 @@
-const db = require('../config/db');
+import db from '../config/db.js';
 
-exports.findByEmail = (email, callback) => {
-  const sql = 'SELECT * FROM users WHERE email = ?';
-  db.query(sql, [email], callback);
+/**
+ * User Model - Generic CRUD operations
+ * Extend this with your specific user logic
+ */
+
+/**
+ * Find user by email
+ */
+export const findByEmail = async (email) => {
+  try {
+    const [rows] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+    return rows[0] || null;
+  } catch (err) {
+    throw err;
+  }
 };
 
-exports.createUser = (username, email, password, role_id, callback) => {
-  const sql = `INSERT INTO users (username, email, password, role_id) VALUES (?, ?, ?, ?)`;
-  db.query(sql, [username, email, password, role_id], callback);
+/**
+ * Find user by ID
+ */
+export const findById = async (userId) => {
+  try {
+    const [rows] = await db.query('SELECT * FROM users WHERE user_id = ?', [userId]);
+    return rows[0] || null;
+  } catch (err) {
+    throw err;
+  }
 };
 
-// New helpers aligned with schema (users.user_id, role_id, etc.)
-exports.findById = (user_id, callback) => {
-  const sql = 'SELECT * FROM users WHERE user_id = ?';
-  db.query(sql, [user_id], callback);
+/**
+ * Get all users
+ */
+export const getAll = async () => {
+  try {
+    const [rows] = await db.query('SELECT user_id, username, email, role_id, created_at FROM users');
+    return rows;
+  } catch (err) {
+    throw err;
+  }
 };
 
-exports.getAll = (callback) => {
-  const sql = 'SELECT * FROM users';
-  db.query(sql, [], callback);
+/**
+ * Create new user
+ */
+export const create = async (userData) => {
+  const { username, email, password, roleId = 1 } = userData;
+
+  if (!username || !email || !password) {
+    throw new Error('Username, email, and password are required');
+  }
+
+  try {
+    const [result] = await db.query(
+      'INSERT INTO users (username, email, password, role_id) VALUES (?, ?, ?, ?)',
+      [username, email, password, roleId]
+    );
+    return { user_id: result.insertId, username, email, role_id: roleId };
+  } catch (err) {
+    throw err;
+  }
 };
 
-exports.updateUser = (user_id, fields, callback) => {
+/**
+ * Update user
+ */
+export const update = async (userId, updateData) => {
   const allowed = ['username', 'email', 'password', 'role_id'];
-  const entries = Object.entries(fields).filter(([k]) => allowed.includes(k));
-  if (entries.length === 0) return callback(null, { affectedRows: 0 });
+  const entries = Object.entries(updateData).filter(([key]) => allowed.includes(key));
 
-  const setClause = entries.map(([k]) => `${k} = ?`).join(', ');
-  const values = entries.map(([, v]) => v);
-  const sql = `UPDATE users SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`;
-  db.query(sql, [...values, user_id], callback);
+  if (entries.length === 0) {
+    throw new Error('No valid fields to update');
+  }
+
+  const setClause = entries.map(([key]) => `${key} = ?`).join(', ');
+  const values = entries.map(([, value]) => value);
+  values.push(userId);
+
+  try {
+    const [result] = await db.query(`UPDATE users SET ${setClause} WHERE user_id = ?`, values);
+    return result.affectedRows;
+  } catch (err) {
+    throw err;
+  }
 };
 
-exports.deleteUser = (user_id, callback) => {
-  const sql = 'DELETE FROM users WHERE user_id = ?';
-  db.query(sql, [user_id], callback);
+/**
+ * Delete user
+/**
+ * Delete user
+ */
+export const deleteUser = async (userId) => {
+  try {
+    const [result] = await db.query('DELETE FROM users WHERE user_id = ?', [userId]);
+    return result.affectedRows;
+  } catch (err) {
+    throw err;
+  }
 };
