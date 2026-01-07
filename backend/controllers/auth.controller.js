@@ -521,6 +521,7 @@ export const unifiedLogin = async (req, res) => {
       const isPasswordValid = await bcrypt.compare(password, pwdUser.password_hash);
 
       if (!isPasswordValid) {
+        console.warn(`[LOGIN ATTEMPT] PWD User ${idNumber}: Invalid password`);
         return res.status(401).json({
           success: false,
           message: 'Invalid username or password',
@@ -563,3 +564,41 @@ export const unifiedLogin = async (req, res) => {
     });
   }
 };
+
+// ============================================
+// DEBUG ENDPOINT (Development Only)
+// ============================================
+
+/**
+ * Get all test users for debugging
+ * @route GET /auth/test-users
+ * @access Public
+ */
+export const getTestUsers = async (req, res) => {
+  try {
+    // Get staff/admin users
+    const [staffUsers] = await db.query(
+      `SELECT person_id, fullname, username, role_id FROM person_role_assignment`
+    );
+
+    // Get PWD users
+    const [pwdUsers] = await db.query(
+      `SELECT pul.pwd_id, pul.login_username, pu.firstname, pu.lastname
+       FROM pwd_user_login pul
+       JOIN Nangka_PWD_user pu ON pul.pwd_id = pu.pwd_id`
+    );
+
+    res.json({
+      success: true,
+      staff: staffUsers || [],
+      pwd: pwdUsers || [],
+    });
+  } catch (err) {
+    console.error('Get test users error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve test users',
+    });
+  }
+};
+

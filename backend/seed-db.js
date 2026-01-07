@@ -85,8 +85,8 @@ async function seedDatabase() {
     console.log('📝 Creating Sample PWD User...');
     const [pwdUserResult] = await db.query(
       `INSERT INTO Nangka_PWD_user 
-       (firstname, middlename, lastname, suffix, sex, birthdate, age, civil_status, address, barangay, contact_no, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+       (pwd_id, firstname, middlename, lastname, suffix, sex, birthdate, age, civil_status, address, barangay, contact_no, is_active)
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
       [
         'Jose',
         'Garcia',
@@ -102,7 +102,7 @@ async function seedDatabase() {
       ]
     );
 
-    const pwdId = pwdUserResult.insertId;
+    const pwdId = 1;
     console.log(`   ✅ PWD User created (PWD ID: ${pwdId})`);
     console.log(`   📌 Name: Jose Garcia Lopez`);
     console.log(`   📌 Birthdate: 1985-05-15\n`);
