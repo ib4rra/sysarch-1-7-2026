@@ -37,6 +37,12 @@ router.post('/pwd-login', pwdLoginValidationRules(), handleValidationErrors, Aut
 router.post('/unified-login', AuthController.unifiedLogin);
 
 /**
+ * DEBUG: Get Test Users (Development Only)
+ * GET /auth/test-users
+ */
+router.get('/test-users', AuthController.getTestUsers);
+
+/**
  * ============================================
  * PROTECTED ROUTES (Authentication Required)
  * ============================================
