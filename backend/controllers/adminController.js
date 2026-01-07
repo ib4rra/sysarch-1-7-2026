@@ -1,92 +1,59 @@
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import { db } from '../db.js';
-
 /**
- * ADMIN LOGIN
+ * Admin Controller Template
+ * Add your admin-specific business logic here
  */
-export const loginAdmin = async (req, res) => {
-  const { idNumber, password } = req.body;
 
-  if (!idNumber || !password) {
-    return res.status(400).json({
-      message: 'ID Number and Password are required',
-    });
-  }
-
+export const getAdminDashboard = async (req, res) => {
   try {
-    const [rows] = await db.query(
-      'SELECT * FROM admins WHERE admin_id = ? AND status = "active"',
-      [idNumber]
-    );
-
-    if (rows.length === 0) {
-      return res.status(401).json({
-        message: 'Invalid ID Number or Password',
-      });
-    }
-
-    const admin = rows[0];
-
-    const isPasswordValid = await bcrypt.compare(
-      password,
-      admin.password_hash
-    );
-
-    if (!isPasswordValid) {
-      return res.status(401).json({
-        message: 'Invalid ID Number or Password',
-      });
-    }
-
-    const token = jwt.sign(
-      {
-        id: admin.id,
-        role: admin.role,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '8h' }
-    );
-
-    return res.status(200).json({
-      message: 'Login successful',
-      token,
-      admin: {
-        id: admin.id,
-        adminId: admin.admin_id,
-        name: admin.full_name,
-        role: admin.role,
-      },
+    // TODO: Implement admin dashboard logic
+    res.json({
+      message: 'Admin dashboard',
+      userId: req.userId,
     });
-
-  } catch (error) {
-    console.error('Admin login error:', error);
-    return res.status(500).json({
-      message: 'Server error',
-    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
 
-/**
- * GET ADMIN PROFILE (Protected)
- */
-export const getAdminProfile = async (req, res) => {
+export const getAllUsers = async (req, res) => {
   try {
-    const adminId = req.user.id;
+    // TODO: Implement get all users logic
+    res.json({
+      message: 'Get all users',
+      users: [],
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
 
-    const [rows] = await db.query(
-      'SELECT id, admin_id, full_name, role FROM admins WHERE id = ?',
-      [adminId]
-    );
+export const updateUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const updateData = req.body;
 
-    if (rows.length === 0) {
-      return res.status(404).json({ message: 'Admin not found' });
-    }
+    // TODO: Implement user update logic
 
-    res.json(rows[0]);
+    res.json({
+      message: 'User updated',
+      userId,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
 
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+export const deleteUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // TODO: Implement user deletion logic
+
+    res.json({
+      message: 'User deleted',
+      userId,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };

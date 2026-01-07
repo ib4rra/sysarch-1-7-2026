@@ -1,15 +1,34 @@
-const express = require('express');
+import express from 'express';
+import authRoutes from './auth.routes.js';
+import userRoutes from './user.routes.js';
+import adminRoutes from './admin.routes.js';
+import pwdRoutes from './pwd.routes.js';
+import pwdUserRoutes from './pwd-user.routes.js';
+import disabilityRoutes from './disability.routes.js';
+import claimsRoutes from './claims.routes.js';
+
 const router = express.Router();
 
-router.use('/auth', require('./auth.routes'));
-router.use('/user', require('./user.routes'));
-router.use('/events', require('./realtime.routes'));
-router.use('/student', require('./student.routes'));
-router.use('/instructor', require('./instructor.routes'));
-router.use('/admin', require('./admin.routes'));
-router.use('/activity', require('./activity.routes'));
-router.use('/code', require('./code.routes'));
-router.use('/subject', require('./subjectRoutes'));
-router.use('/quiz', require('./quiz.routes'));
+// Health check endpoint
+router.get('/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    system: 'PWD Management Information System - Barangay Nangka, Marikina'
+  });
+});
 
-module.exports = router;
+// API routes
+router.use('/auth', authRoutes);
+router.use('/user', userRoutes);
+router.use('/admin', adminRoutes);
+
+// PWD MIS specific routes
+router.use('/pwd', pwdRoutes);
+router.use('/pwd-user', pwdUserRoutes); // PWD user limited access routes
+router.use('/disability', disabilityRoutes);
+router.use('/claims', claimsRoutes);
+
+export default router;
+
+
