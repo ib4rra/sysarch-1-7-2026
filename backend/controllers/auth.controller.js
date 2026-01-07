@@ -500,10 +500,12 @@ export const unifiedLogin = async (req, res) => {
 
     // Try PWD user login
     const [pwdUsers] = await db.query(
-      `SELECT pwd_id, fullname, surname, password_hash, is_active 
-       FROM pwd_user_login 
-       WHERE pwd_id = ?`,
-      [idNumber]
+      `SELECT pul.pwd_id, pul.login_username, pul.password_hash, pul.is_active,
+              pu.firstname, pu.lastname
+       FROM pwd_user_login pul
+       JOIN Nangka_PWD_user pu ON pul.pwd_id = pu.pwd_id
+       WHERE pul.login_username = ? OR pul.pwd_id = ?`,
+      [idNumber, idNumber]
     );
 
     if (pwdUsers && pwdUsers.length > 0) {
@@ -541,7 +543,7 @@ export const unifiedLogin = async (req, res) => {
         token,
         user: {
           id: pwdUser.pwd_id,
-          username: pwdUser.fullname,
+          username: `${pwdUser.firstname} ${pwdUser.lastname}`,
           role: 'pwd_user',
           role_id: 4,
         },

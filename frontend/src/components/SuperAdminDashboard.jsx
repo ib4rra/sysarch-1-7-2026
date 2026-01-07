@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Plus, Settings, LogOut, Shield, Lock } from "lucide-react";
+import { Users, Plus, Settings, Shield, Lock, LogOut } from "lucide-react";
+import Header from "../web_components/Header";
+import SuperAdminSidebar from "../web_components/SuperAdminSidebar";
 
 function SuperAdminDashboard() {
   const navigate = useNavigate();
@@ -127,72 +129,20 @@ function SuperAdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Top Navigation */}
-      <nav className="bg-white shadow-lg border-b-4 border-red-600">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Shield className="w-8 h-8 text-red-600" />
-            <div>
-              <h1 className="text-2xl font-bold text-red-700">Super Admin Panel</h1>
-              <p className="text-xs text-gray-500">System Management & Control</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <p className="text-sm text-gray-600">Super Administrator</p>
-              <p className="font-semibold text-gray-800">{user?.username}</p>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-semibold flex items-center gap-2 transition"
-            >
-              <LogOut size={18} /> Logout
-            </button>
-          </div>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Header Component */}
+      <Header 
+        userLabel={`Super Admin`} 
+        userName={user?.username || "Super Admin"}
+      />
 
       {/* Sidebar + Content */}
-      <div className="flex">
-        {/* Sidebar */}
-        <div className="w-64 bg-white shadow-lg min-h-screen border-r-2 border-red-100">
-          <div className="p-6 space-y-2">
-            <button
-              onClick={() => setActiveTab("dashboard")}
-              className={`w-full text-left px-4 py-3 rounded-lg font-semibold flex items-center gap-3 transition ${
-                activeTab === "dashboard"
-                  ? "bg-red-100 text-red-700 border-l-4 border-red-600"
-                  : "text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              <Shield size={20} /> System Overview
-            </button>
-            <button
-              onClick={() => setActiveTab("admins")}
-              className={`w-full text-left px-4 py-3 rounded-lg font-semibold flex items-center gap-3 transition ${
-                activeTab === "admins"
-                  ? "bg-red-100 text-red-700 border-l-4 border-red-600"
-                  : "text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              <Users size={20} /> Manage Admin Accounts
-            </button>
-            <button
-              onClick={() => setActiveTab("settings")}
-              className={`w-full text-left px-4 py-3 rounded-lg font-semibold flex items-center gap-3 transition ${
-                activeTab === "settings"
-                  ? "bg-red-100 text-red-700 border-l-4 border-red-600"
-                  : "text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              <Settings size={20} /> System Settings
-            </button>
-          </div>
-        </div>
+      <div className="flex flex-1">
+        {/* SuperAdmin Sidebar Component */}
+        <SuperAdminSidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout} />
 
         {/* Main Content */}
-        <div className="flex-1 p-8">
+        <div className="flex-1 p-8 overflow-auto">
           {renderContent()}
         </div>
       </div>

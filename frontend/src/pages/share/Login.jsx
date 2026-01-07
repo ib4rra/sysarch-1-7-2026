@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, Lock } from "lucide-react";
 import API from "../../api";
+import Header from "../../web_components/Header";
 
 function Login() {
   const navigate = useNavigate();
@@ -100,25 +101,28 @@ function Login() {
   };
 
   return (
-    <div className="w-full min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <div className="w-full max-w-[400px] bg-[#3a0606] rounded-2xl p-8 border-2 border-[#5a0a0a] shadow-2xl">
-        <div className="text-center mb-6">
-          <h2 className="text-white text-2xl font-bold uppercase tracking-wide leading-tight">
-            Barangay Nangka<br />PWD Management
-          </h2>
-          <div className="w-full h-[1px] bg-gray-500/50 mt-4"></div>
-          <p className="text-gray-400 text-xs mt-2">
-            {backendStatus}
-          </p>
-        </div>
+    <div className="w-full min-h-screen flex flex-col bg-gray-100">
+      {/* Header Component */}
+      <Header userLabel="" userName="Guest" />
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Login Form Container */}
+      <div className="flex-1 flex items-center justify-center p-4">
+        <div className="w-full max-w-[400px] bg-[#3a0606] rounded-2xl p-8 border-2 border-[#5a0a0a] shadow-2xl">
+          <div className="text-center mb-6">
+            <h2 className="text-white text-2xl font-bold uppercase tracking-wide leading-tight">
+              PWD Management<br />System
+            </h2>
+            <div className="w-full h-[1px] bg-gray-500/50 mt-4"></div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-6">
           <div className="relative">
             <input
               type="text"
               name="idNumber"
               placeholder="ID Number / Username"
-              className="w-full bg-white px-4 py-2 pr-10 rounded-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 placeholder-gray-400"
+              className="w-full bg-white px-4 py-2 pr-10 rounded-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-800"
+              style={{ color: 'rgb(31, 41, 55)' }}
               value={formData.idNumber}
               onChange={handleChange}
               disabled={loading || !backendStatus?.includes("✅")}
@@ -132,7 +136,8 @@ function Login() {
               type="password"
               name="password"
               placeholder="Password"
-              className="w-full bg-white px-4 py-2 pr-10 rounded-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 placeholder-gray-400"
+              className="w-full bg-white px-4 py-2 pr-10 rounded-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-800"
+              style={{ color: 'rgb(31, 41, 55)' }}
               value={formData.password}
               onChange={handleChange}
               disabled={loading || !backendStatus?.includes("✅")}
@@ -160,16 +165,18 @@ function Login() {
           </button>
         </form>
 
-        <div className="mt-8 text-center">
+      <div className="mt-8 text-center">
           <div className="w-full h-[1px] bg-gray-500/50 mb-4"></div>
-          <button
+           {/* <button
             className="text-white text-sm hover:underline tracking-wide"
             onClick={() => navigate("/forgot-password")}
             disabled={loading}
           >
             Forgot Password ?
-          </button>
+          </button> */} 
         </div>
+     
+      </div>
       </div>
     </div>
   );
