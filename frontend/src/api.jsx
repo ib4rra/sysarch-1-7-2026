@@ -139,6 +139,42 @@ export const pwdUserAPI = {
 };
 
 /**
+ * Admin PWD endpoints
+ */
+export const pwdAdminAPI = {
+  getRegistrants: async (page = 1, limit = 50) => {
+    const response = await API.get(`/pwd?page=${page}&limit=${limit}`);
+    return response.data;
+  },
+  getRegistrantById: async (pwdId) => {
+    const response = await API.get(`/pwd/${pwdId}`);
+    return response.data;
+  },
+  createRegistrant: async (payload) => {
+    const response = await API.post('/pwd', payload);
+    return response.data;
+  },
+  updateRegistrant: async (pwdId, payload) => {
+    const response = await API.put(`/pwd/${pwdId}`, payload);
+    return response.data;
+  },
+  deleteRegistrant: async (pwdId) => {
+    const response = await API.delete(`/pwd/${pwdId}`);
+    return response.data;
+  }
+};
+
+/**
+ * Analytics API
+ */
+export const analyticsAPI = {
+  getOverview: async () => {
+    const response = await API.get('/analytics/overview');
+    return response.data;
+  }
+};
+
+/**
  * Health Check
  */
 export const checkHealth = async () => {
