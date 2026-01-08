@@ -3,12 +3,16 @@ import { useNavigate } from "react-router-dom";
 import { Users, Plus, Settings, BarChart3, Shield } from "lucide-react";
 import Header from "../web_components/Header";
 import Sidebar from "../web_components/Sidebar";
+import ManageView from "./ManageView";
+import VerifyIDView from "./VerifyIDView";
+import HomeView from "./HomeView";
+import AnalyticsView from "./AnalyticsView";
 
 function AdminDashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState("home");
 
   useEffect(() => {
     const userId = localStorage.getItem("userId");
@@ -47,80 +51,19 @@ function AdminDashboard() {
 
   const renderContent = () => {
     switch (activeTab) {
-      case "dashboard":
-        return (
-          <div className="space-y-6">
-            <h2 className="text-3xl font-bold text-gray-800">Dashboard Overview</h2>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-600 text-sm">Total Staff</p>
-                    <p className="text-3xl font-bold text-blue-700 mt-2">24</p>
-                  </div>
-                  <Users className="w-12 h-12 text-blue-400 opacity-50" />
-                </div>
-              </div>
-              <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-600 text-sm">PWD Users</p>
-                    <p className="text-3xl font-bold text-green-700 mt-2">1,248</p>
-                  </div>
-                  <Shield className="w-12 h-12 text-green-400 opacity-50" />
-                </div>
-              </div>
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-600 text-sm">Pending Records</p>
-                    <p className="text-3xl font-bold text-purple-700 mt-2">42</p>
-                  </div>
-                  <BarChart3 className="w-12 h-12 text-purple-400 opacity-50" />
-                </div>
-              </div>
-              <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-6 border border-orange-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-600 text-sm">Expiring IDs</p>
-                    <p className="text-3xl font-bold text-orange-700 mt-2">18</p>
-                  </div>
-                  <Settings className="w-12 h-12 text-orange-400 opacity-50" />
-                </div>
-              </div>
-            </div>
-          </div>
-        );
+      case "home":
+        return <HomeView />;
 
-      case "staff":
-        return (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Manage Staff</h2>
-              <button className="bg-sky-500 hover:bg-sky-600 text-white px-6 py-2 rounded-lg font-semibold flex items-center gap-2 transition">
-                <Plus size={20} /> Create Staff Account
-              </button>
-            </div>
-            <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-              <p className="text-gray-600">Staff management interface coming soon...</p>
-            </div>
-          </div>
-        );
+      case "dashboard":
+        return <AnalyticsView />;
+
+      
 
       case "pwd":
-        return (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-bold text-gray-800">Manage PWD Users</h2>
-              <button className="bg-sky-500 hover:bg-sky-600 text-white px-6 py-2 rounded-lg font-semibold flex items-center gap-2 transition">
-                <Plus size={20} /> Create PWD Account
-              </button>
-            </div>
-            <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-              <p className="text-gray-600">PWD user management interface coming soon...</p>
-            </div>
-          </div>
-        );
+        return <ManageView />;
+
+      case "pwd-verify":
+        return <VerifyIDView />;
 
       case "settings":
         return (

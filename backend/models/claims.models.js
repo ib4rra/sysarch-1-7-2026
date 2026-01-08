@@ -13,11 +13,11 @@ export const getAllClaims = async (page = 1, limit = 20) => {
     const offset = (page - 1) * limit;
     const [rows] = await db.query(
       `SELECT bc.*, 
-              CONCAT(pr.first_name, ' ', pr.last_name) as pwd_name,
+              CONCAT(pr.firstname, ' ', pr.lastname) as pwd_name,
               ap.program_name,
               CONCAT(u.first_name, ' ', u.last_name) as approved_by_name
        FROM beneficiary_claims bc
-       LEFT JOIN pwd_registrants pr ON bc.pwd_id = pr.pwd_id
+       LEFT JOIN Nangka_PWD_user pr ON bc.pwd_id = pr.pwd_id
        LEFT JOIN assistance_programs ap ON bc.program_id = ap.program_id
        LEFT JOIN users u ON bc.approved_by = u.user_id
        ORDER BY bc.created_at DESC

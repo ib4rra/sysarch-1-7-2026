@@ -1,8 +1,38 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Calendar, RefreshCw, Users, Clock, FileDown, Printer, ShieldAlert } from 'lucide-react';
+import { analyticsAPI } from '../api';
 
 const AnalyticsView = () => {
+  const [loading, setLoading] = useState(true);
+  const [overview, setOverview] = useState({
+    totalRegistered: 0,
+    pendingApplications: 0,
+    renewalsDue: 0,
+    seniors: 0,
+    genderDistribution: [],
+    disabilities: [],
+    clusterGroups: [],
+  });
+
+  useEffect(() => {
+    const fetchOverview = async () => {
+      try {
+        setLoading(true);
+        const res = await analyticsAPI.getOverview();
+        if (res && res.success) {
+          setOverview(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch analytics overview', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOverview();
+  }, []);
+
   // Function to handle Excel (CSV) download for analytics summary
   const handleDownloadExcel = () => {
     const reportDate = new Date().toLocaleDateString();
@@ -16,22 +46,21 @@ const AnalyticsView = () => {
       [],
       ["OVERVIEW STATISTICS"],
       ["Metric", "Value", "Status"],
-      ["Total Registered PWD", "1,248", "Active"],
-      ["Pending Applications", "42", "Awaiting Review"],
-      ["ID Renewals Due", "18", "Urgent"],
+      ["Total Registered PWD", overview.totalRegistered || 0, "Active"],
+      ["Pending Applications", overview.pendingApplications || 0, "Awaiting Review"],
+      ["ID Renewals Due", overview.renewalsDue || 0, "Urgent"],
       [],
       ["DISABILITY CLASSIFICATIONS"],
       ["Type", "Count", "Percentage"],
-      ["Physical", "23", "18.4%"],
-      ["Visual", "27", "21.6%"],
-      ["Hearing", "12", "9.6%"],
-      ["Mental", "20", "16.0%"],
-      ["Multiple", "40", "32.0%"],
+      ...(overview.disabilities || []).map(d => [d.label, d.count, ((d.count / Math.max(1, overview.totalRegistered)) * 100).toFixed(1) + '%']),
+      [],
+      ["POPULATION BY CLUSTER GROUP"],
+      ["Cluster", "Count", "Percentage"],
+      ...(overview.clusterGroups || []).map(c => [`Cluster ${c.cluster}`, c.count, ((c.count / Math.max(1, overview.totalRegistered)) * 100).toFixed(1) + '%']),
       [],
       ["GENDER DISTRIBUTION"],
       ["Gender", "Count", "Percentage"],
-      ["Male", "695", "55.7%"],
-      ["Female", "553", "44.3%"],
+      ...(overview.genderDistribution || []).map(g => [g.gender, g.count, ((g.count / Math.max(1, overview.totalRegistered)) * 100).toFixed(1) + '%']),
       [],
       ["FOOTER INFORMATION"],
       ["System Version", "v2.0"],
@@ -95,7 +124,7 @@ const AnalyticsView = () => {
           </div>
           <div>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest print:text-black">Total Registered PWD</p>
-            <p className="text-3xl md:text-4xl font-black text-red-800 print:text-black">1,248</p>
+            <p className="text-3xl md:text-4xl font-black text-red-800 print:text-black">{loading ? '—' : overview.totalRegistered}</p>
             <p className="text-[10px] text-gray-500 italic">Active memberships</p>
           </div>
         </div>
@@ -105,7 +134,7 @@ const AnalyticsView = () => {
           </div>
           <div>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest print:text-black">Pending Applications</p>
-            <p className="text-3xl md:text-4xl font-black text-orange-600 print:text-black">42</p>
+            <p className="text-3xl md:text-4xl font-black text-orange-600 print:text-black">{loading ? '—' : overview.pendingApplications}</p>
             <p className="text-[10px] text-gray-500 italic">Review in progress</p>
           </div>
         </div>
@@ -115,7 +144,7 @@ const AnalyticsView = () => {
           </div>
           <div>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest print:text-black">ID Renewals Due</p>
-            <p className="text-3xl md:text-4xl font-black text-blue-600 print:text-black">18</p>
+            <p className="text-3xl md:text-4xl font-black text-blue-600 print:text-black">{loading ? '—' : overview.renewalsDue}</p>
             <p className="text-[10px] text-gray-500 italic">Within 30 days</p>
           </div>
         </div>
@@ -129,37 +158,73 @@ const AnalyticsView = () => {
             <span className="text-xl no-print">📊</span> Disability Classifications
           </h3>
           <div className="h-64 flex items-end justify-around border-b border-gray-100 pb-2 gap-2 md:gap-4 print:border-black">
-            {[
-              { label: 'Physical', val: 23, color: 'bg-cyan-500' },
-              { label: 'Visual', val: 27, color: 'bg-blue-500' },
-              { label: 'Hearing', val: 12, color: 'bg-indigo-500' },
-              { label: 'Mental', val: 20, color: 'bg-purple-500' },
-              { label: 'Multiple', val: 40, color: 'bg-red-500' },
-            ].map(item => (
-              <div key={item.label} className="flex flex-col items-center w-full group">
-                <div 
-                  className={`w-full ${item.color} rounded-t-sm transition-all group-hover:opacity-80 print:bg-gray-300 print:border print:border-black`} 
-                  style={{ height: `${(item.val / 40) * 100}%` }}
-                ></div>
-                <span className="text-[8px] md:text-[10px] mt-2 font-black text-gray-500 uppercase text-center print:text-black">{item.label}</span>
-              </div>
-            ))}
+            {(!loading && overview.disabilities && overview.disabilities.length > 0) ? (() => {
+              const maxVal = Math.max(...overview.disabilities.map(d => d.count), 1);
+              const colors = ['bg-cyan-500','bg-blue-500','bg-indigo-500','bg-purple-500','bg-red-500','bg-emerald-500','bg-amber-500'];
+              return overview.disabilities.map((item, idx) => (
+                <div key={item.label} className="flex flex-col items-center w-full group">
+                  <div 
+                    className={`w-full ${colors[idx % colors.length]} rounded-t-sm transition-all group-hover:opacity-80 print:bg-gray-300 print:border print:border-black`} 
+                    style={{ height: `${(item.count / maxVal) * 100}%` }}
+                  ></div>
+                  <span className="text-[8px] md:text-[10px] mt-2 font-black text-gray-500 uppercase text-center print:text-black">{item.label}</span>
+                </div>
+              ));
+            })() : (
+              <div className="text-gray-400 italic">No disability data available</div>
+            )}
+          </div>
+        </div>
+
+        {/* Cluster Group - Population by Cluster Group */}
+        <div className="bg-white p-6 md:p-8 rounded-xl border border-gray-100 shadow-sm mb-6 print:border-black">
+          <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2 italic uppercase text-sm tracking-tight print:text-black">
+            <span className="text-xl no-print">📍</span> Population by Cluster Group
+          </h3>
+          <div className="space-y-4">
+            {(!loading && overview.clusterGroups && overview.clusterGroups.length > 0) ? (() => {
+              const maxVal = Math.max(...overview.clusterGroups.map(c => c.count), 1);
+              return overview.clusterGroups.map((item) => (
+                <div key={item.cluster} className="flex items-center justify-between gap-4">
+                  <div className="text-sm font-bold text-gray-700 w-32">Cluster {item.cluster}</div>
+                  <div className="flex-1 bg-gray-100 h-4 rounded-full overflow-hidden mx-4">
+                    <div className="h-4 bg-[#800000] rounded-full" style={{ width: `${(item.count / maxVal) * 100}%` }}></div>
+                  </div>
+                  <div className="text-xs text-gray-500 w-40 text-right">{item.count} Residents ({((item.count / Math.max(1, overview.totalRegistered)) * 100).toFixed(0)}%)</div>
+                </div>
+              ));
+            })() : (
+              <div className="text-gray-400 italic">No cluster data available</div>
+            )}
           </div>
         </div>
 
         {/* Pie Chart Container */}
         <div className="bg-white p-6 md:p-8 rounded-xl border border-gray-100 shadow-sm print:border-black">
-          <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2 italic uppercase text-sm tracking-tight print:text-black">
-            <span className="text-xl no-print">📈</span> Gender Distribution
-          </h3>
           <div className="flex flex-col sm:flex-row items-center justify-around gap-6 md:gap-8 h-64">
             <div className="relative w-32 h-32 md:w-44 md:h-44 rounded-full overflow-hidden flex shadow-inner border border-gray-100 print:border-black">
-              <div className="h-full bg-emerald-500 print:bg-gray-400" style={{ width: '55.7%' }}></div>
-              <div className="h-full bg-amber-500 print:bg-gray-100" style={{ width: '44.3%' }}></div>
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="text-white font-black text-[9px] md:text-[10px] absolute right-6 md:right-8 text-center drop-shadow-md print:text-black">M: 55.7%</div>
-                <div className="text-white font-black text-[9px] md:text-[10px] absolute left-4 md:left-6 text-center drop-shadow-md print:text-black">F: 44.3%</div>
-              </div>
+              {(() => {
+                if (loading || !overview.genderDistribution) return (
+                  <div className="h-full bg-gray-200 w-full"></div>
+                );
+
+                const male = overview.genderDistribution.find(g => g.gender === 'Male')?.count || 0;
+                const female = overview.genderDistribution.find(g => g.gender === 'Female')?.count || 0;
+                const total = Math.max(1, (male + female));
+                const malePct = ((male / total) * 100).toFixed(1);
+                const femalePct = ((female / total) * 100).toFixed(1);
+
+                return (
+                  <>
+                    <div className="h-full bg-emerald-500 print:bg-gray-400" style={{ width: `${malePct}%` }}></div>
+                    <div className="h-full bg-amber-500 print:bg-gray-100" style={{ width: `${femalePct}%` }}></div>
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="text-white font-black text-[9px] md:text-[10px] absolute right-6 md:right-8 text-center drop-shadow-md print:text-black">M: {malePct}%</div>
+                      <div className="text-white font-black text-[9px] md:text-[10px] absolute left-4 md:left-6 text-center drop-shadow-md print:text-black">F: {femalePct}%</div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
             <div className="space-y-3 md:space-y-4">
               <div className="flex items-center gap-3">

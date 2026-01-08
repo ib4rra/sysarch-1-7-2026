@@ -12,15 +12,14 @@ export const getAllRegistrants = async (page = 1, limit = 10) => {
   try {
     const offset = (page - 1) * limit;
     const [rows] = await db.query(
-      `SELECT pwd_id, registry_number, first_name, middle_name, last_name, 
-              date_of_birth, gender, contact_number, address, created_at 
-       FROM pwd_registrants 
-       ORDER BY created_at DESC 
+      `SELECT pwd_id, firstname, middlename, lastname, sex, birthdate, contact_no, address, registration_date, cluster_group_no, is_active 
+       FROM Nangka_PWD_user 
+       ORDER BY registration_date DESC 
        LIMIT ? OFFSET ?`,
       [limit, offset]
     );
     
-    const [countResult] = await db.query('SELECT COUNT(*) as total FROM pwd_registrants');
+    const [countResult] = await db.query('SELECT COUNT(*) as total FROM Nangka_PWD_user');
     
     return {
       data: rows,
@@ -42,7 +41,7 @@ export const getAllRegistrants = async (page = 1, limit = 10) => {
 export const findById = async (pwdId) => {
   try {
     const [rows] = await db.query(
-      `SELECT * FROM pwd_registrants WHERE pwd_id = ?`,
+      `SELECT * FROM Nangka_PWD_user WHERE pwd_id = ?`,
       [pwdId]
     );
     return rows[0] || null;
@@ -56,9 +55,12 @@ export const findById = async (pwdId) => {
  */
 export const findByUserId = async (userId) => {
   try {
+    // PWD user login is stored separately in pwd_user_login; if needed, join
     const [rows] = await db.query(
-      `SELECT * FROM pwd_registrants WHERE user_id = ?`,
-      [userId]
+      `SELECT n.* FROM Nangka_PWD_user n
+       JOIN pwd_user_login l ON l.pwd_id = n.pwd_id
+       WHERE l.login_username = ?`,
+      [String(userId)]
     );
     return rows[0] || null;
   } catch (err) {
@@ -73,10 +75,10 @@ export const search = async (query) => {
   try {
     const searchTerm = `%${query}%`;
     const [rows] = await db.query(
-      `SELECT pwd_id, registry_number, first_name, middle_name, last_name, contact_number
-       FROM pwd_registrants 
-       WHERE first_name LIKE ? OR last_name LIKE ? OR registry_number LIKE ?
-       ORDER BY last_name, first_name
+      `SELECT pwd_id, firstname, middlename, lastname, contact_no
+       FROM Nangka_PWD_user 
+       WHERE firstname LIKE ? OR lastname LIKE ? OR CAST(pwd_id AS CHAR) LIKE ?
+       ORDER BY lastname, firstname
        LIMIT 50`,
       [searchTerm, searchTerm, searchTerm]
     );
@@ -106,34 +108,47 @@ export const create = async (pwdData) => {
     emergencyNumber,
   } = pwdData;
 
-  if (!userId || !firstName || !lastName || !contactNumber) {
-    throw new Error('Required fields: userId, firstName, lastName, contactNumber');
+  if (!firstName || !lastName || !contactNumber) {
+    throw new Error('Required fields: firstName, lastName, contactNumber');
   }
 
   try {
     const [result] = await db.query(
-      `INSERT INTO pwd_registrants 
-       (user_id, registry_number, first_name, middle_name, last_name, 
-        date_of_birth, gender, civil_status, address, barangay, 
-        contact_number, emergency_contact, emergency_number)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO Nangka_PWD_user 
+       (firstname, middlename, lastname, sex, birthdate, civil_status, address, barangay, contact_no, guardian_name, guardian_contact, cluster_group_no)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        userId,
-        registryNumber,
         firstName,
         middleName,
         lastName,
-        dateOfBirth,
-        gender,
-        civilStatus,
-        address,
-        barangay,
+        gender || 'Male',
+        dateOfBirth || null,
+        civilStatus || 'Single',
+        address || '',
+        barangay || 'Nangka',
         contactNumber,
-        emergencyContact,
-        emergencyNumber,
+        emergencyContact || '',
+        emergencyNumber || '',
+        pwdData.clusterGroupNo || 1,
       ]
     );
-    return { pwd_id: result.insertId, ...pwdData };
+
+    const newPwd = { pwd_id: result.insertId, firstname: firstName, middlename: middleName, lastname: lastName, birthdate: dateOfBirth, contact_no: contactNumber, barangay: barangay || 'Nangka', cluster_group_no: pwdData.clusterGroupNo || 1 };
+
+    // If an admin/user created this, insert into PWD_MIS to record the assignment
+    if (userId) {
+      try {
+        await db.query(
+          `INSERT INTO PWD_MIS (pwd_id, person_id, registration_status) VALUES (?, ?, ?)`,
+          [result.insertId, userId, 'registered']
+        );
+      } catch (innerErr) {
+        // Log but don't fail the overall operation
+        console.warn('Failed to insert into PWD_MIS:', innerErr.message);
+      }
+    }
+
+    return newPwd;
   } catch (err) {
     throw err;
   }
@@ -143,34 +158,35 @@ export const create = async (pwdData) => {
  * Update PWD registrant
  */
 export const update = async (pwdId, updateData) => {
-  const allowed = [
-    'registry_number',
-    'first_name',
-    'middle_name',
-    'last_name',
-    'date_of_birth',
-    'gender',
-    'civil_status',
-    'address',
-    'barangay',
-    'contact_number',
-    'emergency_contact',
-    'emergency_number',
-  ];
+  const mapping = {
+    registry_number: 'registry_number',
+    first_name: 'firstname',
+    middle_name: 'middlename',
+    last_name: 'lastname',
+    date_of_birth: 'birthdate',
+    gender: 'sex',
+    civil_status: 'civil_status',
+    address: 'address',
+    barangay: 'barangay',
+    contact_number: 'contact_no',
+    emergency_contact: 'guardian_name',
+    emergency_number: 'guardian_contact',
+    cluster_group_no: 'cluster_group_no',
+  };
 
-  const entries = Object.entries(updateData).filter(([key]) => allowed.includes(key));
+  const entries = Object.entries(updateData).filter(([key]) => Object.keys(mapping).includes(key));
 
   if (entries.length === 0) {
     throw new Error('No valid fields to update');
   }
 
-  const setClause = entries.map(([key]) => `${key} = ?`).join(', ');
+  const setClause = entries.map(([key]) => `${mapping[key]} = ?`).join(', ');
   const values = entries.map(([, value]) => value);
   values.push(pwdId);
 
   try {
     const [result] = await db.query(
-      `UPDATE pwd_registrants SET ${setClause} WHERE pwd_id = ?`,
+      `UPDATE Nangka_PWD_user SET ${setClause} WHERE pwd_id = ?`,
       values
     );
     return result.affectedRows;
@@ -185,7 +201,7 @@ export const update = async (pwdId, updateData) => {
 export const delete_ = async (pwdId) => {
   try {
     const [result] = await db.query(
-      `DELETE FROM pwd_registrants WHERE pwd_id = ?`,
+      `DELETE FROM Nangka_PWD_user WHERE pwd_id = ?`,
       [pwdId]
     );
     return result.affectedRows;
@@ -200,7 +216,7 @@ export const delete_ = async (pwdId) => {
 export const getPwdWithDisabilities = async (pwdId) => {
   try {
     const [pwdRows] = await db.query(
-      `SELECT * FROM pwd_registrants WHERE pwd_id = ?`,
+      `SELECT * FROM Nangka_PWD_user WHERE pwd_id = ?`,
       [pwdId]
     );
 

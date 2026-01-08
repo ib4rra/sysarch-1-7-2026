@@ -111,6 +111,13 @@ export const createRegistrant = async (req, res) => {
       emergencyNumber,
     } = req.body;
 
+    // allow staff identity from token if userId not supplied
+    const finalUserId = userId || req.userId || null;
+
+    if (!finalUserId) {
+      return res.status(400).json({ success: false, message: 'userId is required (admin id).' });
+    }
+
     // Validation
     if (!firstName || !lastName || !contactNumber) {
       return res.status(400).json({
@@ -120,7 +127,7 @@ export const createRegistrant = async (req, res) => {
     }
 
     const pwd = await PwdModel.create({
-      userId,
+      userId: finalUserId,
       registryNumber,
       firstName,
       middleName,
@@ -133,6 +140,7 @@ export const createRegistrant = async (req, res) => {
       contactNumber,
       emergencyContact,
       emergencyNumber,
+      clusterGroupNo: clusterGroupNo || 1,
     });
 
     res.status(201).json({

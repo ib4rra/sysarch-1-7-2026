@@ -40,6 +40,14 @@ export async function initializeDatabase() {
     // await connection.execute(createUsersTableQuery);
     // await connection.execute(createRolesTableQuery);
 
+    // Ensure `cluster_group_no` column exists for PWD records (used by analytics and cluster features)
+    try {
+      await connection.execute(`ALTER TABLE Nangka_PWD_user ADD COLUMN IF NOT EXISTS cluster_group_no INT DEFAULT 1`);
+      console.log('✅ Ensured column `cluster_group_no` exists on Nangka_PWD_user');
+    } catch (colErr) {
+      console.warn('⚠️ Could not ensure `cluster_group_no` column:', colErr.message);
+    }
+
     console.log('✅ Database tables initialized');
     connection.release();
   } catch (err) {
