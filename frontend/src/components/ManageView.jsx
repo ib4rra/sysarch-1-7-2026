@@ -28,7 +28,8 @@ const NANGKA_LOGO = "https://i.ibb.co/C3X9jK3f/barangay-nangka-logo.png";
 const BAGONG_PILIPINAS = "https://upload.wikimedia.org/wikipedia/commons/f/f6/Bagong_Pilipinas_logo.png";
 const MARIKINA_SEAL = "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Seal_of_Marikina.svg/1200px-Seal_of_Marikina.svg.png";
 
-const ManageView = ({ records = [], setRecords = () => {} }) => {
+const ManageView = () => {
+  const [localRecords, setLocalRecords] = useState([]); // Local state for records
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
@@ -70,14 +71,18 @@ const ManageView = ({ records = [], setRecords = () => {} }) => {
     "Cancer (Rare Disease)"
   ];
 
-  // Load records on component mount
+  // Load records on component mount - only once
   useEffect(() => {
     const loadRecords = async () => {
       try {
         setIsLoading(true);
         const response = await pwdAdminAPI.getRegistrants();
-        if (response.data && Array.isArray(response.data)) {
-          setRecords(response.data);
+        
+        // The API returns response.data which contains the actual records array
+        const records = Array.isArray(response) ? response : (response.data || response.registrants || []);
+        
+        if (Array.isArray(records) && records.length > 0) {
+          setLocalRecords(records);
         }
       } catch (err) {
         console.error('Error loading records:', err);
@@ -87,7 +92,7 @@ const ManageView = ({ records = [], setRecords = () => {} }) => {
       }
     };
     loadRecords();
-  }, []);
+  }, []); // Empty dependency array - fetch only once on mount
 
   useEffect(() => {
     if (selectedRecord) {
@@ -96,19 +101,23 @@ const ManageView = ({ records = [], setRecords = () => {} }) => {
   }, [selectedRecord]);
 
   const filteredRows = useMemo(() => {
-    return (records || []).filter(row => {
-      const name = `${row.firstName} ${row.lastName}`.toLowerCase();
-      const id = row.id.toLowerCase();
+    return (localRecords || []).filter(row => {
+      // Handle both database field names (firstname, lastname) and frontend format (firstName, lastName)
+      const firstName = row.firstName || row.firstname || '';
+      const lastName = row.lastName || row.lastname || '';
+      const name = `${firstName} ${lastName}`.toLowerCase();
+      
+      const id = (row.id || row.pwd_id || '').toString().toLowerCase();
       const search = searchQuery.toLowerCase();
       
       const matchesSearch = name.includes(search) || id.includes(search);
       const matchesStatus = filterCriteria.status ? row.status === filterCriteria.status : true;
-      const matchesType = filterCriteria.disabilityType ? row.disabilityType === filterCriteria.disabilityType : true;
-      const matchesCluster = filterCriteria.clusterGroupNo ? row.clusterGroupNo === filterCriteria.clusterGroupNo : true;
+      const matchesType = filterCriteria.disabilityType ? (row.disabilityType || row.disability_type) === filterCriteria.disabilityType : true;
+      const matchesCluster = filterCriteria.clusterGroupNo ? (row.clusterGroupNo || row.cluster_group_no) === filterCriteria.clusterGroupNo : true;
 
       return matchesSearch && matchesStatus && matchesType && matchesCluster;
     });
-  }, [records, searchQuery, filterCriteria]);
+  }, [localRecords, searchQuery, filterCriteria]);
 
   const totalPages = Math.ceil(filteredRows.length / itemsPerPage);
   const currentItems = filteredRows.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -131,8 +140,10 @@ const ManageView = ({ records = [], setRecords = () => {} }) => {
     if (window.confirm(`Are you sure you want to delete ${record.firstName} ${record.lastName}?`)) {
       try {
         setIsLoading(true);
-        await pwdAdminAPI.deleteRegistrant(record.id);
-        setRecords(prev => prev.filter(r => r.id !== record.id));
+        // Use pwd_id or id depending on what the API returns
+        const pwdId = record.pwd_id || record.id;
+        await pwdAdminAPI.deleteRegistrant(pwdId);
+        setLocalRecords(prev => prev.filter(r => (r.pwd_id || r.id) !== pwdId));
         alert('Record deleted successfully!');
       } catch (err) {
         console.error('Error deleting record:', err);
@@ -151,52 +162,79 @@ const ManageView = ({ records = [], setRecords = () => {} }) => {
     try {
       const formData = new FormData(e.currentTarget);
       
-      let recordId = editingRecord?.id;
-      if (!recordId) {
-         const year = new Date().getFullYear();
-         const count = records.length + 1;
-         recordId = `PWD-${year}-${String(count).padStart(3, '0')}`;
-      }
+      // Get userId from localStorage (admin who created the record)
+      const adminId = localStorage.getItem('userId');
 
       const cType = String(formData.get('cause_type') || '');
       const cSpecific = String(formData.get('cause_specific') || '');
       const finalCause = cType && cSpecific ? `${cType} - ${cSpecific}` : (cType || cSpecific || '');
 
+      // Map frontend fields to backend expectations
       const recordData = {
-        id: recordId,
+        userId: adminId || null,
+        registryNumber: editingRecord?.id || null,
         firstName: String(formData.get('firstName') || '').toUpperCase(),
         lastName: String(formData.get('lastName') || '').toUpperCase(),
         middleName: String(formData.get('middleName') || '').toUpperCase(),
-        suffix: String(formData.get('suffix') || '').toUpperCase(),
-        sex: String(formData.get('sex') || 'Male'),
-        birthdate: String(formData.get('birthdate') || ''),
-        age: editingRecord?.age || 0,
-        contactNo: String(formData.get('contactNo') || ''),
-        clusterGroupNo: String(formData.get('clusterGroupNo') || '1'),
-        education: String(formData.get('education') || ''),
-        occupation: String(formData.get('occupation') || '').toUpperCase(),
-        employmentStatus: String(formData.get('employmentStatus') || 'Unemployed'),
-        disabilityType: String(formData.get('disabilityType') || ''),
-        disabilityCause: finalCause,
-        hoa: String(formData.get('hoa') || '').toUpperCase(),
+        gender: String(formData.get('sex') || 'Male'),  // Backend expects 'gender', not 'sex'
+        dateOfBirth: String(formData.get('birthdate') || ''),  // Backend expects 'dateOfBirth'
+        civilStatus: 'Single',  // Default value - can be extended if needed
         address: String(formData.get('address') || '').toUpperCase(),
-        guardian: String(formData.get('guardian') || '').toUpperCase(),
-        guardianContact: String(formData.get('guardianContact') || ''),
-        guardianAddress: String(formData.get('guardianAddress') || '').toUpperCase(),
-        dateRegistered: String(formData.get('dateRegistered') || new Date().toISOString().split('T')[0]),
-        status: String(formData.get('status') || 'Active'),
-        remarks: String(formData.get('remarks') || 'None'),
-        photo: editingRecord?.photo
+        barangay: 'Nangka',  // Default to Nangka
+        contactNumber: String(formData.get('contactNo') || ''),  // Backend expects 'contactNumber'
+        emergencyContact: String(formData.get('guardian') || '').toUpperCase(),  // Maps to 'emergencyContact'
+        emergencyNumber: String(formData.get('guardianContact') || ''),  // Maps to 'emergencyNumber'
+        disabilityType: String(formData.get('disabilityType') || ''),
+        clusterGroupNo: String(formData.get('clusterGroupNo') || '1'),
       };
 
       if (editingRecord) {
         // Update existing record
-        await pwdAdminAPI.updateRegistrant(editingRecord.id, recordData);
-        setRecords(prev => prev.map(row => row.id === editingRecord.id ? { ...row, ...recordData } : row));
+        const recordId = editingRecord.pwd_id || editingRecord.id;
+        try {
+          const response = await pwdAdminAPI.updateRegistrant(recordId, recordData);
+          
+          // Refetch the updated record to verify it persisted in the database
+          const updatedResponse = await pwdAdminAPI.getRegistrantById(recordId);
+          const persistedRecord = updatedResponse?.data || updatedResponse;
+          
+          // Update local state with the database response to ensure it matches
+          if (persistedRecord) {
+            setLocalRecords(prev => prev.map(row => (row.pwd_id || row.id) === recordId ? persistedRecord : row));
+            setShowFormModal(false);
+            alert('Record updated successfully!');
+          } else {
+            throw new Error('Failed to verify update');
+          }
+        } catch (err) {
+          console.error('Error updating record:', err);
+          setError(err.message || 'Failed to update record');
+          alert('Error: ' + (err.message || 'Failed to update record'));
+        } finally {
+          setIsLoading(false);
+        }
+        return;
       } else {
         // Create new record
         const response = await pwdAdminAPI.createRegistrant(recordData);
-        setRecords(prev => [recordData, ...prev]);
+        
+        // If backend returns created record, use it; otherwise reconstruct from form data
+        const newRecord = response?.data || {
+          pwd_id: response?.pwd_id || `PWD-${new Date().getFullYear()}-${(localRecords.length + 1).toString().padStart(3, '0')}`,
+          firstname: recordData.firstName,
+          lastname: recordData.lastName,
+          middlename: recordData.middleName,
+          sex: recordData.gender,
+          birthdate: recordData.dateOfBirth,
+          contact_no: recordData.contactNumber,
+          disability_type: recordData.disabilityType,
+          cluster_group_no: recordData.clusterGroupNo,
+          address: recordData.address,
+          guardian_name: recordData.emergencyContact,
+          guardian_contact: recordData.emergencyNumber,
+        };
+        
+        setLocalRecords(prev => [newRecord, ...prev]);
       }
 
       setShowFormModal(false);
@@ -255,8 +293,9 @@ const ManageView = ({ records = [], setRecords = () => {} }) => {
 
   const handleSaveAndExit = () => {
     if (selectedRecord) {
-      setRecords(prev => prev.map(r => 
-        r.id === selectedRecord.id ? { ...r, photo: capturedPhoto || undefined } : r
+      const updatedRecord = { ...selectedRecord, photo: capturedPhoto || undefined };
+      setLocalRecords(prev => prev.map(r => 
+        r.id === selectedRecord.id ? updatedRecord : r
       ));
     }
     setSelectedRecord(null);
@@ -272,6 +311,33 @@ const ManageView = ({ records = [], setRecords = () => {} }) => {
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
+      <style>{`
+        input[type="text"],
+        input[type="tel"],
+        input[type="date"],
+        input[type="email"],
+        select,
+        textarea {
+          color: #000 !important;
+        }
+        input::placeholder,
+        textarea::placeholder {
+          color: #9ca3af !important;
+          opacity: 1;
+        }
+        input::-webkit-input-placeholder,
+        textarea::-webkit-input-placeholder {
+          color: #9ca3af !important;
+        }
+        input:-moz-placeholder,
+        textarea:-moz-placeholder {
+          color: #9ca3af !important;
+        }
+        input::-moz-placeholder,
+        textarea::-moz-placeholder {
+          color: #9ca3af !important;
+        }
+      `}</style>
       {/* Header section (Summary cards removed as requested) */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print border-t border-gray-200 pt-6">
         <div>
@@ -294,7 +360,7 @@ const ManageView = ({ records = [], setRecords = () => {} }) => {
             placeholder="Search by name or PWD ID..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/10 focus:border-[#800000] transition-all text-black"
+            className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/10 focus:border-[#800000] transition-all text-black placeholder-gray-400"
           />
         </div>
         <div className="relative">
@@ -361,31 +427,31 @@ const ManageView = ({ records = [], setRecords = () => {} }) => {
           <table className="w-full text-left">
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Citizen ID</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Full Name</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Disability Type</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Cluster</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider text-right">Actions</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-700 uppercase tracking-wider">Citizen ID</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-700 uppercase tracking-wider">Full Name</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-700 uppercase tracking-wider">Disability Type</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-700 uppercase tracking-wider">Cluster</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-700 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-700 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {currentItems.length > 0 ? currentItems.map((row) => (
-                <tr key={row.id} className="hover:bg-gray-50/50 transition-colors group">
-                  <td className="px-6 py-4 text-sm font-mono font-medium text-gray-500">{row.id}</td>
+                <tr key={row.pwd_id || row.id} className="hover:bg-gray-50/50 transition-colors group">
+                  <td className="px-6 py-4 text-sm font-mono font-bold text-gray-800">{row.pwd_id || row.id}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
                         {row.photo ? <img src={row.photo} className="w-full h-full object-cover" /> : <User size={14} className="text-gray-400" />}
                       </div>
-                      <span className="font-bold text-gray-800 text-sm uppercase">{row.firstName} {row.lastName}</span>
+                      <span className="font-bold text-gray-800 text-sm uppercase">{row.firstName || row.firstname} {row.lastName || row.lastname}</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{row.disabilityType || 'N/A'}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">Group {row.clusterGroupNo}</td>
+                  <td className="px-6 py-4 text-sm text-gray-800">{row.disabilityType || row.disability_type || 'N/A'}</td>
+                  <td className="px-6 py-4 text-sm text-gray-800">Group {row.clusterGroupNo || row.cluster_group_no}</td>
                   <td className="px-6 py-4 text-sm">
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                      row.status === 'Active' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-red-50 text-red-700 border-red-100'
+                      row.status === 'Active' ? 'bg-green-50 text-green-800 border-green-200' : 'bg-red-50 text-red-800 border-red-200'
                     }`}>
                       {row.status}
                     </span>
@@ -456,38 +522,38 @@ const ManageView = ({ records = [], setRecords = () => {} }) => {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">First Name *</label>
-                    <input name="firstName" type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.firstName} required />
+                    <input name="firstName" type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.firstName || editingRecord?.firstname || ''} required />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Middle Name</label>
-                    <input name="middleName" type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.middleName} />
+                    <input name="middleName" type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.middleName || editingRecord?.middlename || ''} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Last Name *</label>
-                    <input name="lastName" type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.lastName} required />
+                    <input name="lastName" type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.lastName || editingRecord?.lastname || ''} required />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Suffix</label>
-                    <input name="suffix" type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.suffix} />
+                    <input name="suffix" type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.suffix || ''} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Sex</label>
-                    <select name="sex" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.sex || 'Male'}>
+                    <select name="sex" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.sex || editingRecord?.sex || 'Male'}>
                       <option>Male</option>
                       <option>Female</option>
                     </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Birthdate *</label>
-                    <input name="birthdate" type="date" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.birthdate} required />
+                    <input name="birthdate" type="date" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.birthdate || editingRecord?.birthdate || ''} required />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Contact Number</label>
-                    <input name="contactNo" type="tel" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.contactNo} />
+                    <input name="contactNo" type="tel" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.contactNo || editingRecord?.contact_no || ''} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Cluster Group</label>
-                    <select name="clusterGroupNo" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.clusterGroupNo || '1'}>
+                    <select name="clusterGroupNo" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.clusterGroupNo || editingRecord?.cluster_group_no || '1'}>
                       {[1,2,3,4,5,6].map(n => <option key={n} value={n}>Cluster {n}</option>)}
                     </select>
                   </div>
@@ -504,7 +570,7 @@ const ManageView = ({ records = [], setRecords = () => {} }) => {
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Disability Type *</label>
-                      <select name="disabilityType" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.disabilityType} required>
+                      <select name="disabilityType" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.disabilityType || editingRecord?.disability_type || ''} required>
                         <option value="">Select Type</option>
                         {disabilityTypes.map(type => <option key={type} value={type}>{type}</option>)}
                       </select>
@@ -556,7 +622,7 @@ const ManageView = ({ records = [], setRecords = () => {} }) => {
                         name="hoa" 
                         type="text" 
                         className="w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10" 
-                        defaultValue={editingRecord?.hoa} 
+                        defaultValue={editingRecord?.hoa || ''} 
                       />
                     </div>
                     <div className="space-y-2">
@@ -565,7 +631,7 @@ const ManageView = ({ records = [], setRecords = () => {} }) => {
                         name="address" 
                         rows={4}
                         className="w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10 resize-none" 
-                        defaultValue={editingRecord?.address}
+                        defaultValue={editingRecord?.address || ''}
                         required
                       ></textarea>
                     </div>
@@ -579,7 +645,7 @@ const ManageView = ({ records = [], setRecords = () => {} }) => {
                         name="guardian" 
                         type="text" 
                         className="w-full px-4 py-4 bg-white border border-gray-200 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10" 
-                        defaultValue={editingRecord?.guardian} 
+                        defaultValue={editingRecord?.guardian || editingRecord?.guardian_name || ''} 
                       />
                     </div>
                     <div className="space-y-2">
@@ -588,7 +654,7 @@ const ManageView = ({ records = [], setRecords = () => {} }) => {
                         name="guardianContact" 
                         type="tel" 
                         className="w-full px-4 py-4 bg-white border border-gray-200 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10" 
-                        defaultValue={editingRecord?.guardianContact} 
+                        defaultValue={editingRecord?.guardianContact || editingRecord?.guardian_contact || ''} 
                       />
                     </div>
                   </div>
