@@ -291,6 +291,7 @@ export const createPwdAccount = async (req, res) => {
       contact_no,
       guardian_name,
       guardian_contact,
+      disability_type, // new field
     } = req.body;
 
     if (!firstname || !lastname || !sex || !birthdate || !civil_status || !address) {
@@ -302,8 +303,8 @@ export const createPwdAccount = async (req, res) => {
 
     // Create PWD user record
     const [pwdResult] = await db.query(
-      `INSERT INTO Nangka_PWD_user (firstname, middlename, lastname, suffix, sex, birthdate, civil_status, address, contact_no, guardian_name, guardian_contact, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+      `INSERT INTO Nangka_PWD_user (firstname, middlename, lastname, suffix, sex, birthdate, civil_status, address, contact_no, disability_type, guardian_name, guardian_contact, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
       [
         firstname,
         middlename || null,
@@ -314,6 +315,7 @@ export const createPwdAccount = async (req, res) => {
         civil_status,
         address,
         contact_no || null,
+        disability_type || null,
         guardian_name || null,
         guardian_contact || null,
       ]

@@ -109,6 +109,7 @@ export const createRegistrant = async (req, res) => {
       contactNumber,
       emergencyContact,
       emergencyNumber,
+      clusterGroupNo,
     } = req.body;
 
     // allow staff identity from token if userId not supplied

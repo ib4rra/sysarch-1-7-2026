@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS Nangka_PWD_user (
   address TEXT NOT NULL,
   barangay VARCHAR(100) DEFAULT 'Nangka',
   contact_no VARCHAR(20),
+  disability_type VARCHAR(100) NULL COMMENT 'Primary disability type (optional, for quick reference)',
   guardian_name VARCHAR(255),
   guardian_contact VARCHAR(20),
   registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

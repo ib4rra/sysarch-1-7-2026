@@ -206,12 +206,12 @@ const ManageView = ({ records, setRecords }) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     
-    let recordId = editingRecord?.id;
-    if (!recordId) {
+     let recordId = editingRecord?.id;
+     if (!recordId) {
        const year = new Date().getFullYear();
-       const count = records.length + 1;
+       const count = recordsState.length + 1;
        recordId = `PWD-${year}-${String(count).padStart(3, '0')}`;
-    }
+     }
     
     const cType = String(formData.get('cause_type') || '');
     const cSpecific = String(formData.get('cause_specific') || '');
@@ -278,7 +278,7 @@ const ManageView = ({ records, setRecords }) => {
     try {
       if (editingRecord && editingRecord.pwdId) {
         await pwdAdminAPI.updateRegistrant(editingRecord.pwdId, updatePayload);
-        setRecords(prev => prev.map(row => row.id === editingRecord.id ? { ...row, ...recordData } : row));
+        setRecordsFn(prev => prev.map(row => row.id === editingRecord.id ? { ...row, ...recordData } : row));
       } else {
         const res = await pwdAdminAPI.createRegistrant(createPayload);
         if (res && res.success && res.data) {
@@ -293,7 +293,7 @@ const ManageView = ({ records, setRecords }) => {
             birthdate: newItem.date_of_birth || recordData.birthdate,
             contactNo: newItem.contact_number || recordData.contactNo,
             clusterGroupNo: newItem.cluster_group_no || recordData.clusterGroupNo,
-            disabilityType: recordData.disabilityType,
+            disabilityType: newItem.disability_type || recordData.disabilityType,
             hoa: newItem.barangay || recordData.hoa,
             address: newItem.address || recordData.address,
             guardian: newItem.emergency_contact || recordData.guardian,
@@ -302,7 +302,7 @@ const ManageView = ({ records, setRecords }) => {
             status: newItem.is_active ? 'Active' : 'Inactive',
             remarks: recordData.remarks
           };
-          setRecords(prev => [mapped, ...prev]);
+          setRecordsFn(prev => [mapped, ...prev]);
         } else {
           throw new Error('Create failed');
         }
@@ -318,57 +318,10 @@ const ManageView = ({ records, setRecords }) => {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
-      
-      {/* Stat Bar - Connects to real-time data */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-2 no-print">
-        <div className="bg-white px-6 py-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between border-l-4 border-l-[#800000]">
-           <div>
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Population</p>
-              <p className="text-2xl font-black text-[#800000]">{statsSummary.total}</p>
-           </div>
-           <Users size={24} className="text-gray-200" />
-        </div>
-        <div className="bg-white px-6 py-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between border-l-4 border-l-green-600">
-           <div>
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Active Citizens</p>
-              <p className="text-2xl font-black text-green-600">{statsSummary.active}</p>
-           </div>
-           <Activity size={24} className="text-gray-200" />
-        </div>
-        <div className="bg-white px-6 py-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between border-l-4 border-l-orange-500">
-           <div>
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Pending Approval</p>
-              <p className="text-2xl font-black text-orange-500">{statsSummary.pending}</p>
-           </div>
-           <Clock size={24} className="text-gray-200" />
-        </div>
-      </div>
+    <div className="p-4 md:p-4 max-w-7xl mx-auto space-y-6">
+    
 
-      {/* Cluster quick view */}
-      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm mb-6">
-        <h4 className="text-sm font-bold text-gray-700 mb-3">Population by Cluster Group</h4>
-        <div className="space-y-3">
-          {clusterGroups && clusterGroups.length > 0 ? (
-            (() => {
-              const maxVal = Math.max(...clusterGroups.map(c => c.count), 1);
-              return clusterGroups.map(c => (
-                <div key={c.cluster} className="flex items-center gap-4">
-                  <div className="w-28 text-sm font-bold">Cluster {c.cluster}</div>
-                  <div className="flex-1 bg-gray-100 h-3 rounded-full overflow-hidden">
-                    <div className="h-3 bg-[#800000]" style={{ width: `${(c.count / maxVal) * 100}%` }}></div>
-                  </div>
-                  <div className="w-36 text-xs text-gray-500 text-right">{c.count} Residents ({((c.count / Math.max(1, statsSummary.total)) * 100).toFixed(0)}%)</div>
-                </div>
-              ));
-            })()
-          ) : (
-            <div className="text-gray-400 italic">No cluster data yet</div>
-          )}
-        </div>
-      </div>
-
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print border-t border-gray-200 pt-6">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Citizen Records</h2>
           <p className="text-sm text-gray-500">Add, manage, and verify PWD member profiles.</p>
@@ -378,7 +331,7 @@ const ManageView = ({ records, setRecords }) => {
             onClick={handleAddNew}
             className="flex items-center gap-2 px-6 py-3 bg-[#800000] text-white text-sm font-bold rounded-xl hover:bg-[#600000] shadow-lg shadow-red-900/20 transition-all active:scale-95"
           >
-            <Plus size={18} /> New Record
+            <Plus size={18} /> Add Record
           </button>
         </div>
       </div>
@@ -403,7 +356,9 @@ const ManageView = ({ records, setRecords }) => {
               <tr className="bg-gray-50/50 border-b border-gray-100">
                 <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Citizen ID</th>
                 <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Full Name</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Disability Type</th>
                 <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Cluster</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider">HOA</th>
                 <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Sex</th>
                 <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider text-right">Actions</th>
@@ -414,7 +369,9 @@ const ManageView = ({ records, setRecords }) => {
                 <tr key={row.id} className="hover:bg-gray-50/50 transition-colors group">
                   <td className="px-6 py-4 text-sm font-mono font-medium text-gray-500">{row.id}</td>
                   <td className="px-6 py-4 font-bold text-gray-800 text-sm uppercase">{row.firstName} {row.lastName}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{row.disabilityType || <span className="italic text-gray-300">N/A</span>}</td>
                   <td className="px-6 py-4 text-sm text-gray-500">Group {row.clusterGroupNo}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{row.hoa || <span className="italic text-gray-300">N/A</span>}</td>
                   <td className="px-6 py-4 text-sm text-gray-500">{row.sex}</td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
@@ -424,7 +381,7 @@ const ManageView = ({ records, setRecords }) => {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-end gap-2 text-gray-400">
                       <button onClick={() => handleOpenEdit(row)} className="p-2 text-gray-400 hover:text-[#800000] hover:bg-red-50 rounded-lg">
                         <Edit2 size={16} />
                       </button>

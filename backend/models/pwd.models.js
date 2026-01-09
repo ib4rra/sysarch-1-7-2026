@@ -11,16 +11,24 @@ import db from '../config/db.js';
 export const getAllRegistrants = async (page = 1, limit = 10) => {
   try {
     const offset = (page - 1) * limit;
+    // Join to get the primary disability type (if any) for each user
     const [rows] = await db.query(
-      `SELECT pwd_id, firstname, middlename, lastname, sex, birthdate, contact_no, address, registration_date, cluster_group_no, is_active 
-       FROM Nangka_PWD_user 
-       ORDER BY registration_date DESC 
+      `SELECT u.pwd_id, u.firstname, u.middlename, u.lastname, u.sex, u.birthdate, u.contact_no, u.address, u.registration_date, u.cluster_group_no, u.is_active,
+        (
+          SELECT dt.disability_name
+          FROM pwd_disabilities pd
+          JOIN disability_types dt ON pd.disability_id = dt.disability_id
+          WHERE pd.pwd_id = u.pwd_id
+          LIMIT 1
+        ) AS disability_type
+       FROM Nangka_PWD_user u
+       ORDER BY u.registration_date DESC
        LIMIT ? OFFSET ?`,
       [limit, offset]
     );
-    
+
     const [countResult] = await db.query('SELECT COUNT(*) as total FROM Nangka_PWD_user');
-    
+
     return {
       data: rows,
       pagination: {
@@ -106,6 +114,7 @@ export const create = async (pwdData) => {
     contactNumber,
     emergencyContact,
     emergencyNumber,
+    disabilityType, // new field
   } = pwdData;
 
   if (!firstName || !lastName || !contactNumber) {
@@ -115,8 +124,8 @@ export const create = async (pwdData) => {
   try {
     const [result] = await db.query(
       `INSERT INTO Nangka_PWD_user 
-       (firstname, middlename, lastname, sex, birthdate, civil_status, address, barangay, contact_no, guardian_name, guardian_contact, cluster_group_no)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (firstname, middlename, lastname, sex, birthdate, civil_status, address, barangay, contact_no, disability_type, guardian_name, guardian_contact, cluster_group_no)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         firstName,
         middleName,
@@ -127,13 +136,14 @@ export const create = async (pwdData) => {
         address || '',
         barangay || 'Nangka',
         contactNumber,
+        disabilityType || null,
         emergencyContact || '',
         emergencyNumber || '',
         pwdData.clusterGroupNo || 1,
       ]
     );
 
-    const newPwd = { pwd_id: result.insertId, firstname: firstName, middlename: middleName, lastname: lastName, birthdate: dateOfBirth, contact_no: contactNumber, barangay: barangay || 'Nangka', cluster_group_no: pwdData.clusterGroupNo || 1 };
+    const newPwd = { pwd_id: result.insertId, firstname: firstName, middlename: middleName, lastname: lastName, birthdate: dateOfBirth, contact_no: contactNumber, barangay: barangay || 'Nangka', cluster_group_no: pwdData.clusterGroupNo || 1, disability_type: disabilityType || null };
 
     // If an admin/user created this, insert into PWD_MIS to record the assignment
     if (userId) {
@@ -172,6 +182,7 @@ export const update = async (pwdId, updateData) => {
     emergency_contact: 'guardian_name',
     emergency_number: 'guardian_contact',
     cluster_group_no: 'cluster_group_no',
+    disability_type: 'disability_type',
   };
 
   const entries = Object.entries(updateData).filter(([key]) => Object.keys(mapping).includes(key));
