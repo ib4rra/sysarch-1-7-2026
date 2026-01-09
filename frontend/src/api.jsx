@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios from "axios"; 
 
 const API = axios.create({
   baseURL: "http://localhost:5000",
@@ -196,6 +196,59 @@ export const disabilityAPI = {
 export const analyticsAPI = {
   getOverview: async () => {
     const response = await API.get('/analytics/overview');
+    return response.data;
+  }
+};
+
+/**
+ * Announcements API
+ */
+export const announcementsAPI = {
+  /**
+   * Get all active announcements
+   */
+  getAll: async () => {
+    const response = await API.get('/announcements');
+    return response.data;
+  },
+
+  /**
+   * Get announcement by ID
+   */
+  getById: async (announcementId) => {
+    const response = await API.get(`/announcements/${announcementId}`);
+    return response.data;
+  },
+
+  /**
+   * Get announcements by type
+   */
+  getByType: async (type) => {
+    const response = await API.get(`/announcements/type/${type}`);
+    return response.data;
+  },
+
+  /**
+   * Create new announcement (Admin only)
+   */
+  create: async (announcementData) => {
+    const response = await API.post('/announcements', announcementData);
+    return response.data;
+  },
+
+  /**
+   * Update announcement (Admin only)
+   */
+  update: async (announcementId, updateData) => {
+    const response = await API.put(`/announcements/${announcementId}`, updateData);
+    return response.data;
+  },
+
+  /**
+   * Delete/Deactivate announcement (Admin only)
+   */
+  delete: async (announcementId) => {
+    const response = await API.delete(`/announcements/${announcementId}`);
     return response.data;
   }
 };

@@ -16,6 +16,7 @@ async function cleanupDatabase() {
 
     // Delete data from dependent tables first (foreign key constraints)
     const tables = [
+      "announcements",
       "pwd_user_login",
       "Nangka_PWD_user",
       "Person_In_Charge",
