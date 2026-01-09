@@ -30,7 +30,7 @@ import {
   GraduationCap,
   Phone
 } from 'lucide-react';
-import { pwdAdminAPI, analyticsAPI, disabilityAPI } from '../api';
+import { pwdAdminAPI, analyticsAPI, disabilityAPI } from '../../api';
 
 // Define constants for missing images
 const MARIKINA_SEAL = "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Seal_of_Marikina.svg/1200px-Seal_of_Marikina.svg.png";

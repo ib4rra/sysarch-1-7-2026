@@ -3,9 +3,9 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Login from "./pages/share/Login";
 import ProtectedRoute from "./pages/share/ProtectedRoute";
 import NotFound from "./pages/share/NotFound";
-import SuperAdminDashboard from "./components/SuperAdminDashboard";
-import AdminDashboard from "./components/AdminDashboard";
-import UserDashboard from "./components/UserDashboard";
+import SuperAdminDashboard from "./components/SuperAdminDashboard/SuperAdminDashboard";
+import AdminDashboard from "./components/AdminDashboard/AdminDashboard";
+import UserDashboard from "./components/UserDashboard/UserDashboard";
 
 function App() {
   return (

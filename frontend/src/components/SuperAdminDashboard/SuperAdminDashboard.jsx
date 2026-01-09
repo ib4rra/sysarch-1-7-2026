@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Users, Plus, Settings, Shield, Lock, LogOut } from "lucide-react";
-import Header from "../web_components/Header";
-import SuperAdminSidebar from "../web_components/SuperAdminSidebar";
+import Header from "../../web_components/Header";
+import SuperAdminSidebar from "../../web_components/SuperAdminSidebar";
 
 function SuperAdminDashboard() {
   const navigate = useNavigate();

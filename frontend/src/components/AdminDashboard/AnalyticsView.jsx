@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Calendar, RefreshCw, Users, Clock, FileDown, Printer, ShieldAlert } from 'lucide-react';
-import { analyticsAPI } from '../api';
+import { analyticsAPI } from '../../api';
 
 const AnalyticsView = () => {
   const [loading, setLoading] = useState(true);

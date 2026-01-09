@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import Header from "../web_components/Header";
-import UserSidebar from "../web_components/UserSidebar";
+import Header from "../../web_components/Header";
+import UserSidebar from "../../web_components/UserSidebar";
 
 function UserDashboard() {
   const navigate = useNavigate();
