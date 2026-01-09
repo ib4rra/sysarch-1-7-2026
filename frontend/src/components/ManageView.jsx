@@ -30,7 +30,7 @@ import {
   GraduationCap,
   Phone
 } from 'lucide-react';
-import { pwdAdminAPI, analyticsAPI } from '../api';
+import { pwdAdminAPI, analyticsAPI, disabilityAPI } from '../api';
 
 // Define constants for missing images
 const MARIKINA_SEAL = "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Seal_of_Marikina.svg/1200px-Seal_of_Marikina.svg.png";
@@ -98,20 +98,48 @@ const ManageView = ({ records, setRecords }) => {
   });
 
   const [causeType, setCauseType] = useState('');
+  const [disabilityTypes, setDisabilityTypes] = useState([]);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
-  const disabilityTypes = [
-    "Deaf / Hard of Hearing",
-    "Visual Disability",
-    "Orthopedic Disability",
-    "Intellectual Disability",
-    "Learning Disability",
-    "Mental Disability",
-    "Psychosocial Disability",
-    "Speech and Language Impairment",
-    "Cancer (Rare Disease)"
-  ];
+  // Fetch disability types from backend
+  useEffect(() => {
+    let mounted = true;
+    const fetchDisabilityTypes = async () => {
+      try {
+        console.log('🔄 Fetching disability types from API...');
+        const res = await disabilityAPI.getDisabilityTypes();
+        console.log('📦 API Response:', res);
+        
+        if (res && res.success && res.data && mounted) {
+          console.log('✅ Disability types loaded:', res.data);
+          setDisabilityTypes(res.data);
+        } else {
+          console.warn('⚠️  API response missing success or data:', res);
+          // Fallback
+          throw new Error('API response missing required fields');
+        }
+      } catch (err) {
+        console.error('❌ Failed to fetch disability types:', err);
+        // Fallback to default types if API fails
+        console.log('📋 Using fallback disability types');
+        setDisabilityTypes([
+          { disability_id: 1, disability_name: "Deaf / Hard of Hearing" },
+          { disability_id: 2, disability_name: "Visual Disability" },
+          { disability_id: 3, disability_name: "Orthopedic Disability" },
+          { disability_id: 4, disability_name: "Intellectual Disability" },
+          { disability_id: 5, disability_name: "Learning Disability" },
+          { disability_id: 6, disability_name: "Mental Disability" },
+          { disability_id: 7, disability_name: "Psychosocial Disability" },
+          { disability_id: 8, disability_name: "Speech and Language Impairment" },
+          { disability_id: 9, disability_name: "Cancer (Rare Disease)" }
+        ]);
+      }
+    };
+
+    fetchDisabilityTypes();
+    return () => { mounted = false; };
+  }, []);
 
   const filteredRows = useMemo(() => {
     return recordsState.filter(row => {
@@ -137,14 +165,12 @@ const ManageView = ({ records, setRecords }) => {
   const prevPage = () => { if (currentPage > 1) setCurrentPage(currentPage - 1); };
 
   useEffect(() => { setCurrentPage(1); }, [searchQuery, filterCriteria]);
-
-  // Fetch records from backend when component mounts
   useEffect(() => {
     let mounted = true;
     const fetchRegistrants = async () => {
       setLoadingRecords(true);
       try {
-        const res = await pwdAdminAPI.getRegistrants(1, 1000);
+        const res = await pwdAdminAPI.getRegistrants(1, 1000); 
         if (res && res.success && Array.isArray(res.data)) {
           const mapped = res.data.map(item => ({
             id: item.registry_number || `PWD-${item.pwd_id}`,
@@ -156,6 +182,7 @@ const ManageView = ({ records, setRecords }) => {
             birthdate: item.birthdate || item.date_of_birth || '',
             contactNo: item.contact_no || item.contact_number || '',
             clusterGroupNo: item.cluster_group_no || 1,
+            disabilityType: item.disability_type || (item.disabilities && item.disabilities[0]?.disability_name) || '',
             hoa: item.barangay || '',
             address: item.address || '',
             guardian: item.guardian_name || item.emergency_contact || '',
@@ -260,6 +287,8 @@ const ManageView = ({ records, setRecords }) => {
       emergencyContact: recordData.guardian,
       emergencyNumber: recordData.guardianContact || '',
       clusterGroupNo: parseInt(recordData.clusterGroupNo) || 1,
+      disability_type: recordData.disabilityType,
+      disabilities: [{ disability_name: recordData.disabilityType }] 
     };
 
     const updatePayload = {
@@ -273,6 +302,7 @@ const ManageView = ({ records, setRecords }) => {
       barangay: recordData.hoa || 'Nangka',
       civil_status: 'Single',
       cluster_group_no: parseInt(recordData.clusterGroupNo) || 1,
+      disability_type: recordData.disabilityType, 
     };
 
     try {
@@ -283,23 +313,30 @@ const ManageView = ({ records, setRecords }) => {
         const res = await pwdAdminAPI.createRegistrant(createPayload);
         if (res && res.success && res.data) {
           const newItem = res.data;
+          // Fetch the full record to get up-to-date disabilityType and hoa
+          const fullRes = await pwdAdminAPI.getRegistrantById(newItem.pwd_id);
+          
+          let fullData = fullRes && fullRes.success && fullRes.data ? fullRes.data : newItem;
+
+          // If disability info is in disabilities array, use the first one
+          let disabilityType = fullData.disability_type || (fullData.disabilities && fullData.disabilities[0]?.disability_name) || recordData.disabilityType;
           const mapped = {
-            id: newItem.registry_number || `PWD-${newItem.pwd_id}`,
-            pwdId: newItem.pwd_id,
-            firstName: (newItem.first_name || '').toUpperCase(),
-            lastName: (newItem.last_name || '').toUpperCase(),
-            middleName: (newItem.middle_name || '').toUpperCase(),
-            sex: newItem.gender || recordData.sex,
-            birthdate: newItem.date_of_birth || recordData.birthdate,
-            contactNo: newItem.contact_number || recordData.contactNo,
-            clusterGroupNo: newItem.cluster_group_no || recordData.clusterGroupNo,
-            disabilityType: newItem.disability_type || recordData.disabilityType,
-            hoa: newItem.barangay || recordData.hoa,
-            address: newItem.address || recordData.address,
-            guardian: newItem.emergency_contact || recordData.guardian,
-            guardianContact: newItem.emergency_number || recordData.guardianContact,
-            dateRegistered: newItem.registration_date || newItem.created_at || recordData.dateRegistered,
-            status: newItem.is_active ? 'Active' : 'Inactive',
+            id: fullData.registry_number || `PWD-${fullData.pwd_id}`,
+            pwdId: fullData.pwd_id,
+            firstName: (fullData.firstname || fullData.first_name || '').toUpperCase(),
+            lastName: (fullData.lastname || fullData.last_name || '').toUpperCase(),
+            middleName: (fullData.middlename || fullData.middle_name || '').toUpperCase(),
+            sex: fullData.sex || fullData.gender || recordData.sex,
+            birthdate: fullData.birthdate || fullData.date_of_birth || recordData.birthdate,
+            contactNo: fullData.contact_no || fullData.contact_number || recordData.contactNo,
+            clusterGroupNo: fullData.cluster_group_no || recordData.clusterGroupNo,
+            disabilityType,
+            hoa: fullData.barangay || recordData.hoa,
+            address: fullData.address || recordData.address,
+            guardian: fullData.guardian_name || fullData.emergency_contact || recordData.guardian,
+            guardianContact: fullData.guardian_contact || fullData.emergency_number || recordData.guardianContact,
+            dateRegistered: fullData.registration_date || fullData.created_at || recordData.dateRegistered,
+            status: fullData.is_active ? 'Active' : 'Inactive',
             remarks: recordData.remarks
           };
           setRecordsFn(prev => [mapped, ...prev]);
@@ -441,41 +478,42 @@ const ManageView = ({ records, setRecords }) => {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">First Name *</label>
-                    <input name="firstName" type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#800000]/10 text-black font-bold" defaultValue={editingRecord?.firstName} required />
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">First Name *</label>
+                    <input name="firstName" type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#800000]/10 text-black font-bold" defaultValue={editingRecord?.firstName} required placeholder="Ivell" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Middle Name</label>
-                    <input name="middleName" type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#800000]/10 text-black font-bold" defaultValue={editingRecord?.middleName} />
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Middle Name</label>
+                    <input name="middleName" type="text" className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#800000]/10 text-black font-bold" defaultValue={editingRecord?.middleName} required placeholder="Albuera" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Last Name *</label>
-                    <input name="lastName" type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#800000]/10 text-black font-bold" defaultValue={editingRecord?.lastName} required />
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Last Name *</label>
+                    <input name="lastName" type="text" className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-xl text-sm font-bold text-gray-400 focus:ring-2 focus:ring-gray-400/40 focus:border-gray-400" defaultValue={editingRecord?.lastName} required placeholder="Ibarra" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Suffix</label>
-                    <input name="suffix" type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#800000]/10 text-black font-bold" defaultValue={editingRecord?.suffix} placeholder="Jr, III, etc" />
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Suffix</label>
+                    <input name="suffix" type="text" className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-xl text-sm font-bold text-gray-400 focus:ring-2 focus:ring-gray-400/40 focus:border-gray-400" defaultValue={editingRecord?.suffix} placeholder="Jr, III, etc" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Sex</label>
-                    <select name="sex" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold" defaultValue={editingRecord?.sex || 'Male'}>
-                       <option>Male</option>
-                       <option>Female</option>
-                    </select>
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Sex</label>
+                    <select name="sex" className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-xl text-sm font-bold text-gray-400 focus:ring-2 focus:ring-gray-400/40 focus:border-gray-400" defaultValue={editingRecord?.sex || 'Male'}>
+
+                     <option className="text-gray-600 font-bold">Male</option>
+                     <option className="text-gray-600 font-bold">Female</option>
+                     </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Birthdate *</label>
-                    <input name="birthdate" type="date" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold" defaultValue={editingRecord?.birthdate} required />
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Birthdate *</label>
+                    <input name="birthdate" type="date" className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-xl text-sm font-bold text-gray-400 focus:ring-2 focus:ring-gray-400/40 focus:border-gray-400" defaultValue={editingRecord?.birthdate} required />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Contact Number</label>
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Contact Number</label>
                     <div className="relative">
                        <Phone className="absolute left-3 top-3 text-gray-300" size={16} />
                        <input name="contactNo" type="tel" className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold" defaultValue={editingRecord?.contactNo} placeholder="09XX XXX XXXX" />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Cluster Group</label>
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Cluster Group</label>
                     <select name="clusterGroupNo" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold" defaultValue={editingRecord?.clusterGroupNo || '1'}>
                        {[1,2,3,4,5,6].map(n => <option key={n} value={n}>Cluster {n}</option>)}
                     </select>
@@ -491,7 +529,7 @@ const ManageView = ({ records, setRecords }) => {
                   <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center text-purple-800">
                     <HeartPulse size={18} />
                   </div>
-                  <h4 className="font-black text-gray-800 uppercase text-sm tracking-widest">Disability Details</h4>
+                  <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Disability Details</h4>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -500,7 +538,11 @@ const ManageView = ({ records, setRecords }) => {
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Disability Type *</label>
                       <select name="disabilityType" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold" defaultValue={editingRecord?.disabilityType} required>
                           <option value="">Select Type</option>
-                          {disabilityTypes.map(type => <option key={type} value={type}>{type}</option>)}
+                          {disabilityTypes && disabilityTypes.length > 0 && disabilityTypes.map(type => {
+                            const key = typeof type === 'string' ? type : type.disability_id;
+                            const display = typeof type === 'string' ? type : type.disability_name;
+                            return <option key={key} value={display}>{display}</option>;
+                          })}
                       </select>
                     </div>
                     <div className="space-y-2">

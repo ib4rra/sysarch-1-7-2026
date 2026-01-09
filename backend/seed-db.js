@@ -141,13 +141,15 @@ async function seedDatabase() {
     } else {
       console.log('📝 Inserting Disability Types...');
       const disabilityTypes = [
-        ['Visual Impairment', 'Blindness or low vision'],
-        ['Hearing Impairment', 'Deafness or hard of hearing'],
-        ['Physical Disability', 'Mobility impairment or limb loss'],
-        ['Mental/Psychiatric', 'Psychological or psychiatric conditions'],
-        ['Developmental', 'Intellectual or developmental disabilities'],
-        ['Chronic Illness', 'Long-term medical conditions'],
-        ['Multiple Disabilities', 'More than one type of disability'],
+        ['Deaf / Hard of Hearing', 'Deafness or hard of hearing'],
+        ['Visual Disability', 'Blindness or low vision'],
+        ['Orthopedic Disability', 'Mobility impairment or limb loss'],
+        ['Intellectual Disability', 'Intellectual or developmental disabilities'],
+        ['Learning Disability', 'Learning disorders and difficulties'],
+        ['Mental Disability', 'Mental health conditions'],
+        ['Psychosocial Disability', 'Psychological or psychiatric conditions'],
+        ['Speech and Language Impairment', 'Speech or language disorders'],
+        ['Cancer (Rare Disease)', 'Cancer and other rare diseases'],
       ];
 
       const [disabilityResult] = await db.query(

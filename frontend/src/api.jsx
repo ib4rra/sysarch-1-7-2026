@@ -165,6 +165,32 @@ export const pwdAdminAPI = {
 };
 
 /**
+ * Disability API Calls
+ */
+export const disabilityAPI = {
+  getDisabilityTypes: async () => {
+    const response = await API.get('/disability/types');
+    return response.data;
+  },
+  getPwdDisabilities: async (pwdId) => {
+    const response = await API.get(`/disability/pwd/${pwdId}`);
+    return response.data;
+  },
+  addDisabilityRecord: async (pwdId, payload) => {
+    const response = await API.post(`/disability/pwd/${pwdId}`, payload);
+    return response.data;
+  },
+  updateDisabilityRecord: async (recordId, payload) => {
+    const response = await API.put(`/disability/record/${recordId}`, payload);
+    return response.data;
+  },
+  deleteDisabilityRecord: async (recordId) => {
+    const response = await API.delete(`/disability/record/${recordId}`);
+    return response.data;
+  }
+};
+
+/**
  * Analytics API
  */
 export const analyticsAPI = {
