@@ -3,9 +3,10 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Login from "./pages/share/Login";
 import ProtectedRoute from "./pages/share/ProtectedRoute";
 import NotFound from "./pages/share/NotFound";
-import SuperAdminDashboard from "./components/SuperAdminDashboard/SuperAdminDashboard";
-import AdminDashboard from "./components/AdminDashboard/AdminDashboard";
-import UserDashboard from "./components/UserDashboard/UserDashboard";
+import SuperAdminDashboard from "./components/SuperAdminDashboard";
+import AdminDashboard from "./components/AdminDashboard";
+import UserDashboard from "./components/UserDashboard";
+import ManageView from "./components/ManageView";
 
 function App() {
   return (
@@ -31,6 +32,16 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[2]}>
               <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Admin Create/Manage Records */}
+        <Route
+          path="/admin/create-record"
+          element={
+            <ProtectedRoute allowedRoles={[2]}>
+              <ManageView />
             </ProtectedRoute>
           }
         />

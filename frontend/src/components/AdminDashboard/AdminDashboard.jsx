@@ -8,6 +8,7 @@ import VerifyIDView from "./VerifyIDView";
 import HomeView from "./HomeView";
 import AnalyticsView from "./AnalyticsView";
 
+
 function AdminDashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -61,20 +62,16 @@ function AdminDashboard() {
         return <ManageView />;
 
       case "pwd-verify":
-        return <VerifyIDView />;
+        return <VerifyIDView />;  
 
-      case "settings":
+            case "settings":
         return (
           <div className="space-y-6">
             <h2 className="text-3xl font-bold text-gray-800">System Settings</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-                <h3 className="font-bold text-lg text-gray-800 mb-4">General Settings</h3>
-                <p className="text-gray-600">General system configuration coming soon...</p>
-              </div>
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-                <h3 className="font-bold text-lg text-gray-800 mb-4">Security Settings</h3>
-                <p className="text-gray-600">Security configuration coming soon...</p>
+                <h3 className="font-bold text-lg text-gray-800 mb-4">⚙️ Customize System Appearance</h3>
+                <p className="text-gray-600">System configuration and general settings coming soon...</p>
               </div>
             </div>
           </div>
@@ -86,6 +83,8 @@ function AdminDashboard() {
   };
 
   return (
+
+    
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header Component */}
       <Header 

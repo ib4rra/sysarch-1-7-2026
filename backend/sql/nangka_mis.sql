@@ -78,21 +78,24 @@ CREATE TABLE IF NOT EXISTS Nangka_PWD_user (
 -- ============================================
 -- Separate login table for PWD users (role_id = 4 in login responses)
 -- PWD users login with: username = pwd_id, password = surname (hashed)
-CREATE TABLE IF NOT EXISTS pwd_user_login (
+CREATE TABLE pwd_user_login (
   login_id INT PRIMARY KEY AUTO_INCREMENT,
-  pwd_id INT NOT NULL UNIQUE,
-  login_username VARCHAR(50) NOT NULL UNIQUE COMMENT 'Usually the PWD ID',
-  password_hash VARCHAR(255) NOT NULL COMMENT 'Hashed surname or provided password',
-  can_view_own_record BOOLEAN DEFAULT TRUE,
+  pwd_id INT NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
   last_login TIMESTAMP NULL,
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (pwd_id) REFERENCES Nangka_PWD_user(pwd_id) ON DELETE CASCADE,
-  INDEX idx_login_username (login_username),
-  INDEX idx_pwd_id (pwd_id),
-  INDEX idx_active (is_active)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+  CONSTRAINT fk_login_pwd
+    FOREIGN KEY (pwd_id)
+    REFERENCES Nangka_PWD_user(pwd_id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+
+  UNIQUE KEY uk_pwd_login (pwd_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 
 -- ============================================
 -- 4. PWD_MIS (Relationship/Management)
@@ -124,17 +127,26 @@ CREATE TABLE IF NOT EXISTS disability_types (
 -- ============================================
 -- 6. PWD Disabilities (Many-to-Many)
 -- ============================================
-CREATE TABLE IF NOT EXISTS pwd_disabilities (
+CREATE TABLE pwd_disabilities (
   pwd_disability_id INT PRIMARY KEY AUTO_INCREMENT,
   pwd_id INT NOT NULL,
   disability_id INT NOT NULL,
   severity ENUM('mild', 'moderate', 'severe') DEFAULT 'moderate',
   date_identified DATE,
   notes TEXT,
-  FOREIGN KEY (pwd_id) REFERENCES Nangka_PWD_user(pwd_id) ON DELETE CASCADE,
-  FOREIGN KEY (disability_id) REFERENCES disability_types(disability_id) ON DELETE RESTRICT,
+  CONSTRAINT fk_pwd_disability_pwd
+    FOREIGN KEY (pwd_id)
+    REFERENCES Nangka_PWD_user(pwd_id)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
+  CONSTRAINT fk_pwd_disability_type
+    FOREIGN KEY (disability_id)
+    REFERENCES disability_types(disability_id)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE,
   UNIQUE KEY unique_pwd_disability (pwd_id, disability_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB;
+
 
 -- ============================================
 -- 7. Beneficiary Claims
@@ -205,6 +217,27 @@ CREATE TABLE IF NOT EXISTS documents (
   FOREIGN KEY (pwd_id) REFERENCES Nangka_PWD_user(pwd_id) ON DELETE CASCADE,
   FOREIGN KEY (uploaded_by) REFERENCES Person_In_Charge(person_id) ON DELETE SET NULL,
   INDEX idx_pwd (pwd_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================
+-- 11. Announcements & Updates
+-- ============================================
+CREATE TABLE IF NOT EXISTS announcements (
+  announcement_id INT PRIMARY KEY AUTO_INCREMENT,
+  title VARCHAR(255) NOT NULL,
+  content TEXT NOT NULL,
+  notice_type ENUM('General', 'Update', 'Emergency') DEFAULT 'General',
+  posted_by INT,
+  event_date DATE,
+  start_time TIME,
+  end_time TIME,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  is_active BOOLEAN DEFAULT TRUE,
+  FOREIGN KEY (posted_by) REFERENCES Person_In_Charge(person_id) ON DELETE SET NULL,
+  INDEX idx_type (notice_type),
+  INDEX idx_created (created_at),
+  INDEX idx_event_date (event_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
