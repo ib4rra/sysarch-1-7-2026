@@ -175,9 +175,13 @@ export const updateRegistrant = async (req, res) => {
       });
     }
 
+    // Fetch and return the updated record
+    const updatedPwd = await PwdModel.getPwdWithDisabilities(pwdId);
+
     res.json({
       success: true,
       message: 'PWD registrant updated successfully',
+      data: updatedPwd,
     });
   } catch (err) {
     console.error('Error updating registrant:', err);
