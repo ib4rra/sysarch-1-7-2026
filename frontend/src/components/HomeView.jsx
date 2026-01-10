@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Megaphone,
   Calendar,
+  Clock,
   Zap,
   Info,
   Plus,
@@ -23,6 +24,11 @@ const HomeView = () => {
   const [posting, setPosting] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+
+  // Refs for native pickers
+  const dateRef = useRef(null);
+  const startRef = useRef(null);
+  const endRef = useRef(null);
 
   const [newNotice, setNewNotice] = useState({
     title: '',
@@ -376,14 +382,28 @@ const HomeView = () => {
                 <label className="block text-[10px] font-bold text-gray-900 mb-2 tracking-widest uppercase">
                   Event Date
                 </label>
-                <input
-                  type="date"
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-black"
-                  value={newNotice.event_date}
-                  onChange={(e) =>
-                    setNewNotice({ ...newNotice, event_date: e.target.value })
-                  }
-                />
+                <div className="relative">
+                  <input
+                    ref={dateRef}
+                    type="date"
+                    className="w-full pr-10 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-black"
+                    value={newNotice.event_date}
+                    onChange={(e) =>
+                      setNewNotice({ ...newNotice, event_date: e.target.value })
+                    }
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (dateRef.current?.showPicker) dateRef.current.showPicker();
+                      else dateRef.current?.focus();
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-600 bg-white border border-slate-200 rounded-md shadow-sm hover:bg-slate-50 z-10"
+                    aria-label="Open date picker"
+                  >
+                    <Calendar size={18} />
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
@@ -391,27 +411,55 @@ const HomeView = () => {
                   <label className="block text-[10px] font-bold text-gray-900 mb-2 tracking-widest uppercase">
                     Start Time
                   </label>
-                  <input
-                    type="time"
-                    className="w-full p-2 sm:p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-black"
-                    value={newNotice.start_time}
-                    onChange={(e) =>
-                      setNewNotice({ ...newNotice, start_time: e.target.value })
-                    }
-                  />
+                  <div className="relative">
+                    <input
+                      ref={startRef}
+                      type="time"
+                      className="w-full pr-10 p-2 sm:p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-black"
+                      value={newNotice.start_time}
+                      onChange={(e) =>
+                        setNewNotice({ ...newNotice, start_time: e.target.value })
+                      }
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (startRef.current?.showPicker) startRef.current.showPicker();
+                        else startRef.current?.focus();
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-600 bg-white border border-slate-200 rounded-md shadow-sm hover:bg-slate-50 z-10"
+                      aria-label="Open time picker"
+                    >
+                      <Clock size={16} />
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-gray-900 mb-2 tracking-widest uppercase">
                     End Time
                   </label>
-                  <input
-                    type="time"
-                    className="w-full p-2 sm:p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-black"
-                    value={newNotice.end_time}
-                    onChange={(e) =>
-                      setNewNotice({ ...newNotice, end_time: e.target.value })
-                    }
-                  />
+                  <div className="relative">
+                    <input
+                      ref={endRef}
+                      type="time"
+                      className="w-full pr-10 p-2 sm:p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-black"
+                      value={newNotice.end_time}
+                      onChange={(e) =>
+                        setNewNotice({ ...newNotice, end_time: e.target.value })
+                      }
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (endRef.current?.showPicker) endRef.current.showPicker();
+                        else endRef.current?.focus();
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-600 bg-white border border-slate-200 rounded-md shadow-sm hover:bg-slate-50 z-10"
+                      aria-label="Open time picker"
+                    >
+                      <Clock size={16} />
+                    </button>
+                  </div>
                 </div>
               </div>
 
