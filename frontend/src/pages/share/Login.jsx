@@ -53,7 +53,7 @@ function Login() {
     const { idNumber, password } = formData;
 
     if (!idNumber || !password) {
-      setError("ID Number and Password are required.");
+      setError("ID/Username and Password are required.");
       setLoading(false);
       return;
     }
@@ -116,67 +116,66 @@ function Login() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="relative">
-            <input
-              type="text"
-              name="idNumber"
-              placeholder="ID Number / Username"
-              className="w-full bg-white px-4 py-2 pr-10 rounded-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-800"
-              style={{ color: 'rgb(31, 41, 55)' }}
-              value={formData.idNumber}
-              onChange={handleChange}
-              disabled={loading || !backendStatus?.includes("✅")}
-              required
-            />
-            <User className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-          </div>
-
-          <div className="relative">
-            <input
-              type="password"
-              name="password"
-              placeholder="Password"
-              className="w-full bg-white px-4 py-2 pr-10 rounded-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-800"
-              style={{ color: 'rgb(31, 41, 55)' }}
-              value={formData.password}
-              onChange={handleChange}
-              disabled={loading || !backendStatus?.includes("✅")}
-              required
-            />
-            <Lock className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-          </div>
-
-          {error && (
-            <div className="bg-red-900/30 border border-red-700 text-red-200 px-4 py-2 rounded text-sm text-center">
-              {error}
+            <div className="relative">
+              <input
+                type="text"
+                name="idNumber"
+                placeholder="ID Number / Username / PWD ID"
+                className="w-full bg-white px-4 py-2 pr-10 rounded-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-800"
+                style={{ color: "rgb(31, 41, 55)" }}
+                value={formData.idNumber}
+                onChange={handleChange}
+                disabled={loading || !backendStatus?.includes("✅")}
+                required
+              />
+              <User className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
             </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={loading || !backendStatus?.includes("✅")}
-            className={`w-full font-bold py-2 rounded-lg border shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-all active:scale-[0.98] ${
-              loading || !backendStatus?.includes("✅")
-                ? "bg-gray-400 text-gray-600 cursor-not-allowed"
-                : "bg-gradient-to-b from-gray-100 to-gray-300 text-gray-800 hover:from-white hover:to-gray-200 border-gray-400"
-            }`}
-          >
-            {loading ? "Signing In..." : "Sign In"}
-          </button>
-        </form>
+            <div className="relative">
+              <input
+                type="password"
+                name="password"
+                placeholder="Password"
+                className="w-full bg-white px-4 py-2 pr-10 rounded-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-800"
+                style={{ color: "rgb(31, 41, 55)" }}
+                value={formData.password}
+                onChange={handleChange}
+                disabled={loading || !backendStatus?.includes("✅")}
+                required
+              />
+              <Lock className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+            </div>
 
-      <div className="mt-8 text-center">
-          <div className="w-full h-[1px] bg-gray-500/50 mb-4"></div>
-           {/* <button
+            {error && (
+              <div className="bg-red-900/30 border border-red-700 text-red-200 px-4 py-2 rounded text-sm text-center">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading || !backendStatus?.includes("✅")}
+              className={`w-full font-bold py-2 rounded-lg border shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-all active:scale-[0.98] ${
+                loading || !backendStatus?.includes("✅")
+                  ? "bg-gray-400 text-gray-600 cursor-not-allowed"
+                  : "bg-gradient-to-b from-gray-100 to-gray-300 text-gray-800 hover:from-white hover:to-gray-200 border-gray-400"
+              }`}
+            >
+              {loading ? "Signing In..." : "Sign In"}
+            </button>
+          </form>
+
+          <div className="mt-8 text-center">
+            <div className="w-full h-[1px] bg-gray-500/50 mb-4"></div>
+            {/* <button
             className="text-white text-sm hover:underline tracking-wide"
             onClick={() => navigate("/forgot-password")}
             disabled={loading}
           >
             Forgot Password ?
-          </button> */} 
+          </button> */}
+          </div>
         </div>
-     
-      </div>
       </div>
     </div>
   );

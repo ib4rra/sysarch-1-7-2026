@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Users, Plus, Settings, BarChart3, Shield } from "lucide-react";
-import Header from "../web_components/Header";
-import Sidebar from "../web_components/Sidebar";
+import Header from "../../web_components/Header";
+import Sidebar from "../../web_components/Sidebar";
 import ManageView from "./ManageView";
 import VerifyIDView from "./VerifyIDView";
 import HomeView from "./HomeView";

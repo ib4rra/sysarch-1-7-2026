@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import db from '../config/db.js';
+import { generatePwdId } from '../utils/pwdIdGenerator.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-env';
 const JWT_EXPIRY = process.env.JWT_EXPIRY || '7d';
@@ -132,13 +133,13 @@ export const pwdLogin = async (req, res) => {
       });
     }
 
-    // Find PWD user login record
+    // Find PWD user login record by formatted PWD_ID
     const [pwdLogins] = await db.query(
-      `SELECT pl.login_id, pl.pwd_id, pl.password_hash, pl.can_view_own_record, pl.is_active,
-              p.firstname, p.lastname, p.sex, p.birthdate, p.contact_no
+      `SELECT pl.login_id, pl.pwd_id, pl.password_hash, pl.is_active,
+              p.pwd_id as pwd_internal_id, p.firstname, p.lastname, p.sex, p.birthdate, p.contact_no
        FROM pwd_user_login pl
        JOIN Nangka_PWD_user p ON pl.pwd_id = p.pwd_id
-       WHERE pl.login_username = ?`,
+       WHERE pl.pwd_id = ?`,
       [pwd_id]
     );
 
@@ -170,7 +171,7 @@ export const pwdLogin = async (req, res) => {
     // Generate limited JWT token for PWD user
     const token = jwt.sign(
       {
-        id: pwdLogin.pwd_id,
+        pwd_id: pwdLogin.pwd_id,
         type: 'pwd_user',
         firstname: pwdLogin.firstname,
         lastname: pwdLogin.lastname,
@@ -193,7 +194,6 @@ export const pwdLogin = async (req, res) => {
           pwd_id: pwdLogin.pwd_id,
           fullname: `${pwdLogin.firstname} ${pwdLogin.lastname}`,
           type: 'pwd_user',
-          can_view_record: pwdLogin.can_view_own_record,
         },
       },
     });
@@ -291,7 +291,8 @@ export const createPwdAccount = async (req, res) => {
       contact_no,
       guardian_name,
       guardian_contact,
-      disability_type, // new field
+      disability_type,
+      cluster_group_no = 1, // Cluster number (default to 1)
     } = req.body;
 
     if (!firstname || !lastname || !sex || !birthdate || !civil_status || !address) {
@@ -301,10 +302,10 @@ export const createPwdAccount = async (req, res) => {
       });
     }
 
-    // Create PWD user record
+    // Create PWD user record in Nangka_PWD_user
     const [pwdResult] = await db.query(
-      `INSERT INTO Nangka_PWD_user (firstname, middlename, lastname, suffix, sex, birthdate, civil_status, address, contact_no, disability_type, guardian_name, guardian_contact, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+      `INSERT INTO Nangka_PWD_user (firstname, middlename, lastname, suffix, sex, birthdate, civil_status, address, contact_no, disability_type, guardian_name, guardian_contact, cluster_group_no, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
       [
         firstname,
         middlename || null,
@@ -318,31 +319,36 @@ export const createPwdAccount = async (req, res) => {
         disability_type || null,
         guardian_name || null,
         guardian_contact || null,
+        cluster_group_no,
       ]
     );
 
-    const pwdId = pwdResult.insertId;
+    const pwdUserId = pwdResult.insertId;
+
+    // Generate formatted PWD_ID (e.g., PWD-MRK-CL01-2026-0001)
+    const formattedPwdId = await generatePwdId(cluster_group_no);
 
     // Hash surname as password
     const hashedPassword = await bcrypt.hash(lastname, 10);
 
-    // Create PWD login record with PWD_ID as username
+    // Create PWD login record with formatted PWD_ID as the login username
+    // The pwd_id column now stores the formatted string ID (after migration)
     const [loginResult] = await db.query(
-      `INSERT INTO pwd_user_login (pwd_id, login_username, password_hash, can_view_own_record, is_active)
-       VALUES (?, ?, ?, TRUE, TRUE)`,
-      [pwdId, pwdId, hashedPassword]
+      `INSERT INTO pwd_user_login (pwd_id, password_hash, is_active)
+       VALUES (?, ?, TRUE)`,
+      [formattedPwdId, hashedPassword]
     );
 
     res.status(201).json({
       success: true,
       message: 'PWD account created successfully',
       data: {
-        pwd_id: pwdId,
+        pwd_id: formattedPwdId,
         fullname: `${firstname} ${lastname}`,
         login_credentials: {
-          username: pwdId,
+          username: formattedPwdId,
           password_note: `Surname: ${lastname}`,
-          instruction: 'Username is the PWD ID, Password is the surname',
+          instruction: 'Username is the PWD ID, Password is the surname (hashed)',
         },
       },
     });
@@ -502,12 +508,10 @@ export const unifiedLogin = async (req, res) => {
 
     // Try PWD user login
     const [pwdUsers] = await db.query(
-      `SELECT pul.pwd_id, pul.login_username, pul.password_hash, pul.is_active,
-              pu.firstname, pu.lastname
+      `SELECT pul.login_id, pul.pwd_id, pul.numeric_pwd_id, pul.password_hash, pul.is_active
        FROM pwd_user_login pul
-       JOIN Nangka_PWD_user pu ON pul.pwd_id = pu.pwd_id
-       WHERE pul.login_username = ? OR pul.pwd_id = ?`,
-      [idNumber, idNumber]
+       WHERE pul.pwd_id = ? COLLATE utf8mb4_general_ci`,
+      [idNumber]
     );
 
     if (pwdUsers && pwdUsers.length > 0) {
@@ -523,18 +527,34 @@ export const unifiedLogin = async (req, res) => {
       const isPasswordValid = await bcrypt.compare(password, pwdUser.password_hash);
 
       if (!isPasswordValid) {
-        console.warn(`[LOGIN ATTEMPT] PWD User ${idNumber}: Invalid password`);
         return res.status(401).json({
           success: false,
           message: 'Invalid username or password',
         });
       }
 
-      // Generate JWT token for PWD user
+      // Update last login
+      await db.query('UPDATE pwd_user_login SET last_login = CURRENT_TIMESTAMP WHERE login_id = ?', [
+        pwdUser.login_id,
+      ]);
+
+      // Get PWD user name from Nangka_PWD_user table using numeric_pwd_id
+      const [pwdUserDetails] = await db.query(
+        `SELECT firstname, lastname FROM Nangka_PWD_user WHERE pwd_id = ? LIMIT 1`,
+        [pwdUser.numeric_pwd_id]
+      );
+
+      const firstName = pwdUserDetails?.[0]?.firstname || '';
+      const lastName = pwdUserDetails?.[0]?.lastname || '';
+
+      // Generate JWT token for PWD user (role_id = 3 for PWD users)
       const token = jwt.sign(
         {
           pwd_id: pwdUser.pwd_id,
-          role_id: 4, // PWD user role
+          type: 'pwd_user',
+          firstname: firstName,
+          lastname: lastName,
+          role_id: 3,
         },
         JWT_SECRET,
         { expiresIn: JWT_EXPIRY }
@@ -546,9 +566,11 @@ export const unifiedLogin = async (req, res) => {
         token,
         user: {
           id: pwdUser.pwd_id,
-          username: `${pwdUser.firstname} ${pwdUser.lastname}`,
-          role: 'pwd_user',
-          role_id: 4,
+          fullname: `${firstName} ${lastName}`,
+          username: pwdUser.pwd_id,
+          role: 'PWD User',
+          role_id: 3,
+          type: 'pwd_user',
         },
       });
     }

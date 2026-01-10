@@ -6,22 +6,31 @@
 import db from '../config/db.js';
 
 /**
+ * Calculate age from birthdate
+ */
+const calculateAge = (birthdate) => {
+  if (!birthdate) return null;
+  const today = new Date();
+  const birth = new Date(birthdate);
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+};
+
+/**
  * Get all PWD registrants with pagination
  */
 export const getAllRegistrants = async (page = 1, limit = 10) => {
   try {
     const offset = (page - 1) * limit;
-    // Join to get the primary disability type (if any) for each user
+    // Fetch registrants with their formatted PWD IDs using LEFT JOIN
     const [rows] = await db.query(
-      `SELECT u.pwd_id, u.firstname, u.middlename, u.lastname, u.sex, u.birthdate, u.contact_no, u.address, u.registration_date, u.cluster_group_no, u.is_active,
-        (
-          SELECT dt.disability_name
-          FROM pwd_disabilities pd
-          JOIN disability_types dt ON pd.disability_id = dt.disability_id
-          WHERE pd.pwd_id = u.pwd_id
-          LIMIT 1
-        ) AS disability_type
+      `SELECT u.pwd_id, u.firstname, u.middlename, u.lastname, u.sex, u.birthdate, u.age, u.contact_no, u.address, u.hoa, u.disability_type, u.disability_cause, u.registration_status, u.guardian_name, u.guardian_contact, u.registration_date, u.cluster_group_no, u.is_active, l.pwd_id as formattedPwdId
        FROM Nangka_PWD_user u
+       LEFT JOIN pwd_user_login l ON l.numeric_pwd_id = u.pwd_id
        ORDER BY u.registration_date DESC
        LIMIT ? OFFSET ?`,
       [limit, offset]
@@ -109,12 +118,16 @@ export const create = async (pwdData) => {
     dateOfBirth,
     gender,
     civilStatus,
+    hoa,
     address,
     barangay,
     contactNumber,
     emergencyContact,
     emergencyNumber,
-    disabilityType, // new field
+    disabilityType,
+    disabilityCause,
+    registrationStatus,
+    clusterGroupNo,
   } = pwdData;
 
   if (!firstName || !lastName || !contactNumber) {
@@ -122,28 +135,47 @@ export const create = async (pwdData) => {
   }
 
   try {
+    const age = calculateAge(dateOfBirth);
     const [result] = await db.query(
       `INSERT INTO Nangka_PWD_user 
-       (firstname, middlename, lastname, sex, birthdate, civil_status, address, barangay, contact_no, disability_type, guardian_name, guardian_contact, cluster_group_no)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (firstname, middlename, lastname, sex, birthdate, age, civil_status, hoa, address, barangay, contact_no, disability_type, disability_cause, registration_status, guardian_name, guardian_contact, cluster_group_no)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         firstName,
         middleName,
         lastName,
         gender || 'Male',
         dateOfBirth || null,
+        age,
         civilStatus || 'Single',
+        hoa || null,
         address || '',
         barangay || 'Nangka',
         contactNumber,
         disabilityType || null,
+        disabilityCause || null,
+        registrationStatus || 'Active',
         emergencyContact || '',
         emergencyNumber || '',
-        pwdData.clusterGroupNo || 1,
+        clusterGroupNo || 1,
       ]
     );
 
-    const newPwd = { pwd_id: result.insertId, firstname: firstName, middlename: middleName, lastname: lastName, birthdate: dateOfBirth, contact_no: contactNumber, barangay: barangay || 'Nangka', cluster_group_no: pwdData.clusterGroupNo || 1, disability_type: disabilityType || null };
+    const newPwd = { 
+      pwd_id: result.insertId, 
+      firstname: firstName, 
+      middlename: middleName, 
+      lastname: lastName, 
+      birthdate: dateOfBirth, 
+      age: age,
+      contact_no: contactNumber, 
+      barangay: barangay || 'Nangka', 
+      cluster_group_no: clusterGroupNo || 1, 
+      disability_type: disabilityType || null,
+      disability_cause: disabilityCause || null,
+      registration_status: registrationStatus || 'Active',
+      hoa: hoa || null,
+    };
 
     // If an admin/user created this, insert into PWD_MIS to record the assignment
     if (userId) {
@@ -169,20 +201,22 @@ export const create = async (pwdData) => {
  */
 export const update = async (pwdId, updateData) => {
   const mapping = {
-    registry_number: 'registry_number',
-    first_name: 'firstname',
-    middle_name: 'middlename',
-    last_name: 'lastname',
-    date_of_birth: 'birthdate',
+    firstName: 'firstname',
+    middleName: 'middlename',
+    lastName: 'lastname',
+    dateOfBirth: 'birthdate',
     gender: 'sex',
-    civil_status: 'civil_status',
+    civilStatus: 'civil_status',
+    hoa: 'hoa',
     address: 'address',
     barangay: 'barangay',
-    contact_number: 'contact_no',
-    emergency_contact: 'guardian_name',
-    emergency_number: 'guardian_contact',
-    cluster_group_no: 'cluster_group_no',
-    disability_type: 'disability_type',
+    contactNumber: 'contact_no',
+    emergencyContact: 'guardian_name',
+    emergencyNumber: 'guardian_contact',
+    disabilityType: 'disability_type',
+    disabilityCause: 'disability_cause',
+    registrationStatus: 'registration_status',
+    clusterGroupNo: 'cluster_group_no',
   };
 
   const entries = Object.entries(updateData).filter(([key]) => Object.keys(mapping).includes(key));
@@ -191,8 +225,21 @@ export const update = async (pwdId, updateData) => {
     throw new Error('No valid fields to update');
   }
 
-  const setClause = entries.map(([key]) => `${mapping[key]} = ?`).join(', ');
-  const values = entries.map(([, value]) => value);
+  // Calculate age if birthdate is being updated
+  const setClause = entries.map(([key]) => {
+    if (key === 'dateOfBirth') {
+      return `${mapping[key]} = ?, age = ?`;
+    }
+    return `${mapping[key]} = ?`;
+  }).join(', ');
+
+  const values = entries.map(([key, value]) => {
+    const result = [value];
+    if (key === 'dateOfBirth') {
+      result.push(calculateAge(value));
+    }
+    return result;
+  }).flat();
   values.push(pwdId);
 
   try {
@@ -233,6 +280,12 @@ export const getPwdWithDisabilities = async (pwdId) => {
 
     if (!pwdRows[0]) return null;
 
+    // Fetch formatted PWD ID from pwd_user_login
+    const [loginRows] = await db.query(
+      `SELECT pwd_id FROM pwd_user_login WHERE numeric_pwd_id = ?`,
+      [pwdId]
+    );
+
     const [disabilityRows] = await db.query(
       `SELECT pwd.*, dt.disability_name, dt.description
        FROM pwd_disabilities pwd
@@ -243,8 +296,28 @@ export const getPwdWithDisabilities = async (pwdId) => {
 
     return {
       ...pwdRows[0],
+      formattedPwdId: loginRows[0]?.pwd_id || null,
       disabilities: disabilityRows,
     };
+  } catch (err) {
+    throw err;
+  }
+};
+
+/**
+ * Get PWD ID from pwd_user_login by login_id
+ * Joins pwd_user_login with Nangka_PWD_user to fetch complete PWD information
+ */
+export const getPwdIdByLoginId = async (loginId) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT n.*, l.login_id, l.password_hash, l.last_login, l.is_active, l.created_at, l.pwd_id as formattedPwdId
+       FROM pwd_user_login l
+       JOIN Nangka_PWD_user n ON l.numeric_pwd_id = n.pwd_id
+       WHERE l.login_id = ?`,
+      [loginId]
+    );
+    return rows[0] || null;
   } catch (err) {
     throw err;
   }

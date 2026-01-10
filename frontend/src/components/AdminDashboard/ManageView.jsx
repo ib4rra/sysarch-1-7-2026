@@ -21,10 +21,9 @@ import {
   FileText,
   Phone
 } from 'lucide-react';
-import { pwdAdminAPI } from '../api';
+import { pwdAdminAPI } from '../../api';
 
 // Constants for official logos
-const NANGKA_LOGO = "https://i.ibb.co/C3X9jK3f/barangay-nangka-logo.png";
 const BAGONG_PILIPINAS = "https://upload.wikimedia.org/wikipedia/commons/f/f6/Bagong_Pilipinas_logo.png";
 const MARIKINA_SEAL = "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Seal_of_Marikina.svg/1200px-Seal_of_Marikina.svg.png";
 
@@ -46,6 +45,7 @@ const ManageView = () => {
   const [isCapturing, setIsCapturing] = useState(false);
   const [capturedPhoto, setCapturedPhoto] = useState(null);
   const [causeType, setCauseType] = useState('');
+  const [causeSpecific, setCauseSpecific] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -60,16 +60,28 @@ const ManageView = () => {
   const fileInputRef = useRef(null);
 
   const disabilityTypes = [
-    "Deaf / Hard of Hearing",
-    "Visual Disability",
-    "Orthopedic Disability",
-    "Intellectual Disability",
-    "Learning Disability",
-    "Mental Disability",
-    "Psychosocial Disability",
-    "Speech and Language Impairment",
-    "Cancer (Rare Disease)"
+    { id: 1, name: "Visual Impairment" },
+    { id: 2, name: "Hearing Impairment" },
+    { id: 3, name: "Physical Disability" },
+    { id: 4, name: "Intellectual Disability" },
+    { id: 5, name: "Psychosocial Disability" },
+    { id: 6, name: "Speech Disability" },
+    { id: 7, name: "Multiple Disabilities" }
   ];
+
+  // Helper function to get disability ID from name
+  const getDisabilityId = (disabilityName) => {
+    const disability = disabilityTypes.find(d => d.name === disabilityName);
+    return disability ? disability.id : null;
+  };
+
+  // Helper function to get disability name from ID
+  const getDisabilityName = (disabilityId) => {
+    if (!disabilityId) return 'N/A';
+    const idNum = parseInt(disabilityId);
+    const disability = disabilityTypes.find(d => d.id === idNum);
+    return disability ? disability.name : 'N/A';
+  };
 
   // Load records on component mount - only once
   useEffect(() => {
@@ -92,7 +104,21 @@ const ManageView = () => {
       }
     };
     loadRecords();
-  }, []); // Empty dependency array - fetch only once on mount
+  }, []);
+
+  // Helper function to refresh records from the server
+  const refreshRecords = async () => {
+    try {
+      const response = await pwdAdminAPI.getRegistrants();
+      const records = Array.isArray(response) ? response : (response.data || response.registrants || []);
+      
+      if (Array.isArray(records) && records.length > 0) {
+        setLocalRecords(records);
+      }
+    } catch (err) {
+      console.error('Error refreshing records:', err);
+    }
+  };
 
   useEffect(() => {
     if (selectedRecord) {
@@ -106,13 +132,15 @@ const ManageView = () => {
       const firstName = row.firstName || row.firstname || '';
       const lastName = row.lastName || row.lastname || '';
       const name = `${firstName} ${lastName}`.toLowerCase();
+
+      const pwdID = (row.pwd_id || row.id || '').toString().toLowerCase();
       
       const id = (row.id || row.pwd_id || '').toString().toLowerCase();
       const search = searchQuery.toLowerCase();
       
       const matchesSearch = name.includes(search) || id.includes(search);
-      const matchesStatus = filterCriteria.status ? row.status === filterCriteria.status : true;
-      const matchesType = filterCriteria.disabilityType ? (row.disabilityType || row.disability_type) === filterCriteria.disabilityType : true;
+      const matchesStatus = filterCriteria.status ? row.registration_status === filterCriteria.status : true;
+      const matchesType = filterCriteria.disabilityType ? getDisabilityName(row.disabilityType || row.disability_type) === filterCriteria.disabilityType : true;
       const matchesCluster = filterCriteria.clusterGroupNo ? (row.clusterGroupNo || row.cluster_group_no) === filterCriteria.clusterGroupNo : true;
 
       return matchesSearch && matchesStatus && matchesType && matchesCluster;
@@ -125,13 +153,19 @@ const ManageView = () => {
   const handleAddNew = () => {
     setEditingRecord(null);
     setCauseType('');
+    setCauseSpecific('');
     setShowFormModal(true);
   };
 
   const handleOpenEdit = (record) => {
     setEditingRecord(record);
     if (record?.disabilityCause) {
-      setCauseType(record.disabilityCause.split(' - ')[0] || '');
+      const [type, specific] = record.disabilityCause.split(' - ');
+      setCauseType(type || '');
+      setCauseSpecific(specific || '');
+    } else {
+      setCauseType('');
+      setCauseSpecific('');
     }
     setShowFormModal(true);
   };
@@ -165,8 +199,8 @@ const ManageView = () => {
       // Get userId from localStorage (admin who created the record)
       const adminId = localStorage.getItem('userId');
 
-      const cType = String(formData.get('cause_type') || '');
-      const cSpecific = String(formData.get('cause_specific') || '');
+      const cType = String(causeType || '');
+      const cSpecific = String(causeSpecific || '');
       const finalCause = cType && cSpecific ? `${cType} - ${cSpecific}` : (cType || cSpecific || '');
 
       // Map frontend fields to backend expectations
@@ -179,12 +213,15 @@ const ManageView = () => {
         gender: String(formData.get('sex') || 'Male'),  // Backend expects 'gender', not 'sex'
         dateOfBirth: String(formData.get('birthdate') || ''),  // Backend expects 'dateOfBirth'
         civilStatus: 'Single',  // Default value - can be extended if needed
+        hoa: String(formData.get('hoa') || ''),
         address: String(formData.get('address') || '').toUpperCase(),
         barangay: 'Nangka',  // Default to Nangka
         contactNumber: String(formData.get('contactNo') || ''),  // Backend expects 'contactNumber'
         emergencyContact: String(formData.get('guardian') || '').toUpperCase(),  // Maps to 'emergencyContact'
         emergencyNumber: String(formData.get('guardianContact') || ''),  // Maps to 'emergencyNumber'
-        disabilityType: String(formData.get('disabilityType') || ''),
+        disabilityType: getDisabilityId(String(formData.get('disabilityType') || '')),  // Convert name to ID
+        disabilityCause: finalCause,
+        registrationStatus: String(formData.get('status') || 'Active'),
         clusterGroupNo: String(formData.get('clusterGroupNo') || '1'),
       };
 
@@ -218,23 +255,9 @@ const ManageView = () => {
         // Create new record
         const response = await pwdAdminAPI.createRegistrant(recordData);
         
-        // If backend returns created record, use it; otherwise reconstruct from form data
-        const newRecord = response?.data || {
-          pwd_id: response?.pwd_id || `PWD-${new Date().getFullYear()}-${(localRecords.length + 1).toString().padStart(3, '0')}`,
-          firstname: recordData.firstName,
-          lastname: recordData.lastName,
-          middlename: recordData.middleName,
-          sex: recordData.gender,
-          birthdate: recordData.dateOfBirth,
-          contact_no: recordData.contactNumber,
-          disability_type: recordData.disabilityType,
-          cluster_group_no: recordData.clusterGroupNo,
-          address: recordData.address,
-          guardian_name: recordData.emergencyContact,
-          guardian_contact: recordData.emergencyNumber,
-        };
-        
-        setLocalRecords(prev => [newRecord, ...prev]);
+        // Refetch all records to ensure we have the latest data from the server
+        // This ensures proper pagination, sorting, and any server-side processing
+        await refreshRecords();
       }
 
       setShowFormModal(false);
@@ -320,6 +343,18 @@ const ManageView = () => {
         textarea {
           color: #000 !important;
         }
+        input[type="date"] {
+          padding-right: 40px !important;
+        }
+        input[type="date"]::-webkit-calendar-picker-indicator {
+          cursor: pointer;
+          border-radius: 4px;
+          margin-right: 8px;
+          opacity: 1;
+          display: block;
+          background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>') no-repeat center;
+          background-size: contain;
+        }
         input::placeholder,
         textarea::placeholder {
           color: #9ca3af !important;
@@ -343,6 +378,12 @@ const ManageView = () => {
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Citizen Records</h2>
           <p className="text-sm text-gray-500">Manage, verify, and print official PWD identification cards.</p>
+          
+          <p className="text-sm text-red-500">1. Paki ayos nung table; pakilagyan ng Barangay sa MODAL, sa DATABASE may table na barangay pero wala naman sa form</p>
+          <p className="text-sm text-red-500">2. Yung suffix dapat kahit wala yung user nakikita padin yung table, dapat naka N/A lang</p>
+          <p className="text-sm text-red-500">3. Yung filters paki ayos nadin, pag cluster pinipili walang lumalabas dahil yung name ata "Group" instead "Cluster"</p>
+          <p className="text-sm text-red-500">4. Yung preview modal gawing responsive and dynamic; yung mga imported data din</p>
+          <p className="text-sm text-red-500">5. Yung Preview ID wala pang Database, taska yung print preview paki ayos din</p>
         </div>
         <button 
           onClick={handleAddNew}
@@ -384,7 +425,7 @@ const ManageView = () => {
                     onChange={(e) => setFilterCriteria({...filterCriteria, disabilityType: e.target.value})}
                   >
                     <option value="">All Types</option>
-                    {disabilityTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                    {disabilityTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
                   </select>
                </div>
                <div className="space-y-1">
@@ -424,84 +465,125 @@ const ManageView = () => {
 
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden no-print">
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-700 uppercase tracking-wider">Citizen ID</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-700 uppercase tracking-wider">Full Name</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-700 uppercase tracking-wider">Disability Type</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-700 uppercase tracking-wider">Cluster</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-700 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-700 uppercase tracking-wider text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {currentItems.length > 0 ? currentItems.map((row) => (
-                <tr key={row.pwd_id || row.id} className="hover:bg-gray-50/50 transition-colors group">
-                  <td className="px-6 py-4 text-sm font-mono font-bold text-gray-800">{row.pwd_id || row.id}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center">
-                        {row.photo ? <img src={row.photo} className="w-full h-full object-cover" /> : <User size={14} className="text-gray-400" />}
-                      </div>
-                      <span className="font-bold text-gray-800 text-sm uppercase">{row.firstName || row.firstname} {row.lastName || row.lastname}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-800">{row.disabilityType || row.disability_type || 'N/A'}</td>
-                  <td className="px-6 py-4 text-sm text-gray-800">Group {row.clusterGroupNo || row.cluster_group_no}</td>
-                  <td className="px-6 py-4 text-sm">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                      row.status === 'Active' ? 'bg-green-50 text-green-800 border-green-200' : 'bg-red-50 text-red-800 border-red-200'
-                    }`}>
-                      {row.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => handleOpenEdit(row)} className="p-2 text-gray-400 hover:text-[#800000] hover:bg-red-50 rounded-lg">
-                        <Edit2 size={16} />
-                      </button>
-                      <button onClick={() => handleDelete(row)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
-                        <Trash2 size={16} />
-                      </button>
-                      <div className="relative inline-block text-left">
-                        <button onClick={() => setOpenMenuRowId(openMenuRowId === row.id ? null : row.id)} className="p-2 text-gray-400 hover:text-[#800000] hover:bg-gray-100 rounded-lg">
-                          <MoreHorizontal size={16} />
+          <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="bg-gradient-to-r from-[#800000]/10 to-red-50 border-b-2 border-[#800000]/20 sticky top-0 z-10">
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">PWD ID</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">First Name</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Middle Name</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Last Name</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Suffix</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Sex</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Birthdate</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Age</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Contact No</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Address</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Barangay</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">HOA</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Disability Type</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Disability Cause</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Status</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Guardian Name</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Guardian Contact</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Reg Date</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Cluster</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Active</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] text-right whitespace-nowrap">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {currentItems.length > 0 ? currentItems.map((row, idx) => (
+                  <tr key={row.pwd_id || row.id} className={`transition-all duration-200 hover:bg-gradient-to-r hover:from-[#800000]/5 hover:to-red-50/50 group ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
+                    <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">{row.formattedPwdId || <span className="text-gray-400">—</span>}</td>
+                    <td className="px-5 py-4 text-gray-900 whitespace-nowrap">{row.firstname || row.firstName || <span className="text-gray-400">—</span>}</td>
+                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap">{row.middlename || row.middleName || <span className="text-gray-400">—</span>}</td>
+                    <td className="px-5 py-4 text-gray-900 whitespace-nowrap">{row.lastname || row.lastName || <span className="text-gray-400">—</span>}</td>
+                    <td className="px-5 py-4 text-gray-900 whitespace-nowrap"><span className="text-gray-400">!!PAKI AYOS!!</span></td>
+                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap">{row.sex || <span className="text-gray-400">—</span>}</td>
+                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.birthdate ? new Date(row.birthdate).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : <span className="text-gray-400">—</span>}</td>
+                    <td className="px-5 py-4 text-gray-900 whitespace-nowrap text-sm">{row.age || <span className="text-gray-400">—</span>}</td>
+                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.contact_no || row.contactNo || <span className="text-gray-400">—</span>}</td>
+                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap max-w-xs truncate text-xs">{row.address || <span className="text-gray-400">—</span>}</td>
+                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap max-w-xs truncate text-xs"><span className="text-gray-400">!!PAKI AYOS!!</span></td>
+                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs font-medium">{row.hoa || <span className="text-gray-400">—</span>}</td>
+                    <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">{getDisabilityName(row.disability_type || row.disabilityType) || <span className="text-gray-400">—</span>}</td>
+                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap max-w-xs truncate text-xs">{row.disability_cause || row.disabilityCause || <span className="text-gray-400">—</span>}</td>
+                    <td className="px-5 py-4 whitespace-nowrap">
+                      <span className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                        (row.registration_status || row.status) === 'Active' 
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300 shadow-sm' 
+                          : 'bg-amber-100 text-amber-800 border-amber-300 shadow-sm'
+                      }`}>
+                        {row.registration_status || row.status || '—'}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.guardian_name || row.guardianName || <span className="text-gray-400">—</span>}</td>
+                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.guardian_contact || row.guardianContact || <span className="text-gray-400">—</span>}</td>
+                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.registration_date ? new Date(row.registration_date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : <span className="text-gray-400">—</span>}</td>
+                    <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">Group {row.cluster_group_no || row.clusterGroupNo || 'N/A'}</td>
+                    <td className="px-5 py-4 text-gray-800 whitespace-nowrap">
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                        row.is_active 
+                          ? 'bg-blue-100 text-blue-800 border-blue-300 shadow-sm' 
+                          : 'bg-gray-200 text-gray-700 border-gray-300 shadow-sm'
+                      }`}>
+                        {row.is_active ? '✓ Yes' : 'No'}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button onClick={() => handleOpenEdit(row)} className="p-2 text-gray-500 hover:text-[#800000] hover:bg-red-100 rounded-lg transition-all duration-150" title="Edit">
+                          <Edit2 size={16} />
                         </button>
-                        {openMenuRowId === row.id && (
-                          <div className="absolute right-0 mt-2 w-52 bg-white border border-gray-200 rounded-xl shadow-2xl z-[60] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                            <button 
-                              onClick={() => { setSelectedRecord(row); setOpenMenuRowId(null); }} 
-                              className="w-full text-left px-4 py-3 text-xs font-bold text-gray-700 hover:bg-red-50 hover:text-[#800000] flex items-center gap-2 border-b border-gray-50"
-                            >
-                              <CreditCard size={14} /> ID Preview Station
-                            </button>
-                            <button 
-                              onClick={() => { setViewRecord(row); setShowInfoModal(true); setOpenMenuRowId(null); }} 
-                              className="w-full text-left px-4 py-3 text-xs font-bold text-gray-700 hover:bg-red-50 hover:text-[#800000] flex items-center gap-2"
-                            >
-                              <Eye size={14} /> Full Information Preview
-                            </button>
-                          </div>
-                        )}
+                        <button onClick={() => handleDelete(row)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-100 rounded-lg transition-all duration-150" title="Delete">
+                          <Trash2 size={16} />
+                        </button>
+                        <div className="relative inline-block text-left z-10">
+                          <button onClick={() => setOpenMenuRowId(openMenuRowId === row.id ? null : row.id)} className="p-2 text-gray-500 hover:text-[#800000] hover:bg-gray-100 rounded-lg transition-all duration-150" title="More">
+                            <MoreHorizontal size={16} />
+                          </button>
+                          {openMenuRowId === row.id && (
+                            <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                              <button 
+                                onClick={() => { setSelectedRecord(row); setOpenMenuRowId(null); }} 
+                                className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-red-50 hover:text-[#800000] flex items-center gap-3 border-b border-gray-100 transition-colors"
+                              >
+                                <CreditCard size={16} /> ID Preview
+                              </button>
+                              <button 
+                                onClick={() => { setViewRecord(row); setShowInfoModal(true); setOpenMenuRowId(null); }} 
+                                className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-red-50 hover:text-[#800000] flex items-center gap-3 transition-colors"
+                              >
+                                <Eye size={16} /> View Details
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                </tr>
-              )) : (
-                <tr>
-                  <td colSpan={6} className="px-6 py-20 text-center text-gray-400 italic">No records found.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                    </td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan={19} className="px-5 py-20 text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="text-gray-400 text-4xl mb-2">📋</div>
+                        <p className="text-gray-500 font-semibold">No records found</p>
+                        <p className="text-gray-400 text-sm">Try adjusting your filters or search</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
       {/* FORM MODAL */}
       {showFormModal && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl overflow-hidden my-8 border border-white/20">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/10 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#EBEBEB] rounded-3xl shadow-2xl w-full max-w-5xl overflow-hidden my-8 border border-gray-700">
             <div className="px-8 py-6 bg-[#800000] text-white flex items-center justify-between sticky top-0 z-10">
               <div>
                 <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
@@ -515,45 +597,45 @@ const ManageView = () => {
             <form className="p-10 space-y-10 max-h-[75vh] overflow-y-auto" onSubmit={handleSaveRecord}>
               {/* Personal Identification Section */}
               <div className="space-y-6">
-                <div className="flex items-center gap-3 border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-3 border-b-3 border-gray-500 pb-3">
                   <div className="w-8 h-8 bg-red-50 rounded-lg flex items-center justify-center text-[#800000]"><User size={18} /></div>
                   <h4 className="font-black text-gray-800 uppercase text-sm tracking-widest">Personal Identification</h4>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">First Name *</label>
-                    <input name="firstName" type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.firstName || editingRecord?.firstname || ''} required />
+                    <input name="firstName" type="text" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.firstName || editingRecord?.firstname || ''} required />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Middle Name</label>
-                    <input name="middleName" type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.middleName || editingRecord?.middlename || ''} />
+                    <input name="middleName" type="text" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.middleName || editingRecord?.middlename || ''} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Last Name *</label>
-                    <input name="lastName" type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.lastName || editingRecord?.lastname || ''} required />
+                    <input name="lastName" type="text" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.lastName || editingRecord?.lastname || ''} required />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Suffix</label>
-                    <input name="suffix" type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.suffix || ''} />
+                    <input name="suffix" type="text" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.suffix || ''} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Sex</label>
-                    <select name="sex" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.sex || editingRecord?.sex || 'Male'}>
+                    <select name="sex" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.sex || editingRecord?.sex || 'Male'}>
                       <option>Male</option>
                       <option>Female</option>
                     </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Birthdate *</label>
-                    <input name="birthdate" type="date" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.birthdate || editingRecord?.birthdate || ''} required />
+                    <input name="birthdate" type="date" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.birthdate || editingRecord?.birthdate || ''} required />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Contact Number</label>
-                    <input name="contactNo" type="tel" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.contactNo || editingRecord?.contact_no || ''} />
+                    <input name="contactNo" type="tel" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.contactNo || editingRecord?.contact_no || ''} />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Cluster Group</label>
-                    <select name="clusterGroupNo" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.clusterGroupNo || editingRecord?.cluster_group_no || '1'}>
+                    <select name="clusterGroupNo" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.clusterGroupNo || editingRecord?.cluster_group_no || '1'}>
                       {[1,2,3,4,5,6].map(n => <option key={n} value={n}>Cluster {n}</option>)}
                     </select>
                   </div>
@@ -562,7 +644,7 @@ const ManageView = () => {
 
               {/* Disability Information Section */}
               <div className="space-y-6">
-                <div className="flex items-center gap-3 border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-3 border-b-3 border-gray-500 pb-3">
                   <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center text-purple-800"><HeartPulse size={18} /></div>
                   <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Disability Information</h4>
                 </div>
@@ -570,21 +652,21 @@ const ManageView = () => {
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Disability Type *</label>
-                      <select name="disabilityType" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.disabilityType || editingRecord?.disability_type || ''} required>
+                      <select name="disabilityType" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.disabilityType || editingRecord?.disability_type || ''} required>
                         <option value="">Select Type</option>
-                        {disabilityTypes.map(type => <option key={type} value={type}>{type}</option>)}
+                        {disabilityTypes.map(type => <option key={type.id} value={type.name}>{type.name}</option>)}
                       </select>
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Registration Status</label>
-                      <select name="status" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.status || 'Active'}>
+                      <select name="status" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.status || 'Active'}>
                         <option>Active</option>
                         <option>Pending</option>
                         <option>Inactive</option>
                       </select>
                     </div>
                   </div>
-                  <div className="bg-gray-50/50 p-6 rounded-2xl border border-gray-100 space-y-6">
+                  <div className="bg-gray-50/50 p-6 rounded-2xl border-2 border-gray-400 space-y-6">
                     <p className="text-[10px] font-black text-[#800000] uppercase tracking-widest border-b border-red-100 pb-2">Cause of Disability</p>
                     <div className="grid grid-cols-2 gap-8">
                       <div className="space-y-3">
@@ -600,13 +682,24 @@ const ManageView = () => {
                         </label>
                       </div>
                     </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Specific Cause Details</label>
+                      <input 
+                        name="cause_specific" 
+                        type="text" 
+                        className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" 
+                        placeholder="e.g., Accident, Disease, Birth Defect"
+                        value={causeSpecific}
+                        onChange={(e) => setCauseSpecific(e.target.value)}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* RESIDENTIAL & SUPPORT SECTION (Integrated from requested layout) */}
               <div className="space-y-6">
-                <div className="flex items-center gap-3 border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-3 border-b-3 border-gray-500 pb-3">
                   <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center text-green-700">
                     <MapPin size={18} />
                   </div>
@@ -621,7 +714,7 @@ const ManageView = () => {
                       <input 
                         name="hoa" 
                         type="text" 
-                        className="w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10" 
+                        className="w-full px-4 py-4 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10" 
                         defaultValue={editingRecord?.hoa || ''} 
                       />
                     </div>
@@ -630,7 +723,7 @@ const ManageView = () => {
                       <textarea 
                         name="address" 
                         rows={4}
-                        className="w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10 resize-none" 
+                        className="w-full px-4 py-4 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10 resize-none" 
                         defaultValue={editingRecord?.address || ''}
                         required
                       ></textarea>
@@ -638,13 +731,13 @@ const ManageView = () => {
                   </div>
 
                   {/* Right Side: Guardian Box (F9FAFB background) */}
-                  <div className="bg-[#F9FAFB] p-8 rounded-[2rem] border border-gray-100 flex flex-col gap-6 h-full">
+                  <div className="bg-[#F9FAFB] p-8 rounded-[2rem] border-2 border-gray-400 flex flex-col gap-6 h-full">
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Guardian Name</label>
                       <input 
                         name="guardian" 
                         type="text" 
-                        className="w-full px-4 py-4 bg-white border border-gray-200 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10" 
+                        className="w-full px-4 py-4 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10" 
                         defaultValue={editingRecord?.guardian || editingRecord?.guardian_name || ''} 
                       />
                     </div>
@@ -653,7 +746,7 @@ const ManageView = () => {
                       <input 
                         name="guardianContact" 
                         type="tel" 
-                        className="w-full px-4 py-4 bg-white border border-gray-200 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10" 
+                        className="w-full px-4 py-4 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10" 
                         defaultValue={editingRecord?.guardianContact || editingRecord?.guardian_contact || ''} 
                       />
                     </div>
@@ -662,7 +755,7 @@ const ManageView = () => {
               </div>
 
               {/* FORM FOOTER ACTIONS */}
-              <div className="flex items-center justify-end gap-12 pt-10 border-t border-gray-100">
+              <div className="flex items-center justify-end gap-12 pt-10 border-t-3 border-gray-500">
                 <button 
                   type="button" 
                   onClick={() => setShowFormModal(false)}
@@ -700,7 +793,10 @@ const ManageView = () => {
                 {/* ID FRONT REPLICA */}
                 <div className="id-card-replica id-card-replica-front shadow-2xl border border-gray-400">
                   <div className="replica-header">
-                    <img src={NANGKA_LOGO} className="replica-logo-seal" alt="Nangka Logo" />
+                    <img  src="./src/assets/logo.png" 
+                    alt="Barangay Logo" 
+                    className="replica-logo-seal" 
+                    />
                     <div className="replica-header-text">
                       <h1 className="main-title">REPUBLIC OF THE PHILIPPINES</h1>
                       <h2 className="city-title">CITY OF MARIKINA</h2>
@@ -708,14 +804,17 @@ const ManageView = () => {
                       <p className="contact-info">#9 OLD J.P RIZAL ST. NANGKA, MARIKINA CITY</p>
                     </div>
                     <div className="replica-logo-right">
-                       <img src={BAGONG_PILIPINAS} className="replica-logo-bagong" />
+                      <img  src="./src/assets/bagongpinas.png" 
+                      alt="Bpinas Logo" 
+                      className="replica-logo-bagong" 
+                      />
                     </div>
                   </div>
                   <div className="replica-body">
                     <h2 className="replica-title">BARANGAY NANGKA PWD MEMBER</h2>
                     <div className="replica-top-fields">
-                       <p>CLUSTER: <span className="underline-field">{selectedRecord.clusterGroupNo || '______'}</span></p>
-                       <p>TAG NO: <span className="underline-field">{selectedRecord.id.split('-').pop()}</span></p>
+                       <p>CLUSTER: <span className="underline-field">{selectedRecord.clusterGroupNo || selectedRecord.cluster_group_no || '______'}</span></p>
+                       <p>TAG NO: <span className="underline-field">{(selectedRecord.id || selectedRecord.pwd_id || '').toString().split('-').pop() || '______'}</span></p>
                     </div>
                     <div className="replica-main-content">
                        <div className="replica-left-col">
@@ -728,10 +827,10 @@ const ManageView = () => {
                           </div>
                        </div>
                        <div className="replica-right-col">
-                          <DataRow label="FULL NAME:" value={`${selectedRecord.firstName} ${selectedRecord.middleName} ${selectedRecord.lastName}`} />
-                          <DataRow label="ADDRESS:" value={selectedRecord.address} />
-                          <DataRow label="P.W.D ID NUMBER:" value={selectedRecord.id} />
-                          <DataRow label="TYPE OF DISABILITY:" value={selectedRecord.disabilityType} />
+                          <DataRow label="FULL NAME:" value={`${selectedRecord.firstname || selectedRecord.firstName || ''} ${selectedRecord.middlename || selectedRecord.middleName || ''} ${selectedRecord.lastname || selectedRecord.lastName || ''}`} />
+                          <DataRow label="ADDRESS:" value={selectedRecord.address || ''} />
+                          <DataRow label="P.W.D ID NUMBER:" value={selectedRecord.formattedPwdId || selectedRecord.id || selectedRecord.pwd_id || ''} />
+                          <DataRow label="TYPE OF DISABILITY:" value={getDisabilityName(selectedRecord.disability_type || selectedRecord.disabilityType) || 'N/A'} />
                        </div>
                     </div>
                   </div>
@@ -741,7 +840,10 @@ const ManageView = () => {
                 {/* ID BACK REPLICA */}
                 <div className="id-card-replica id-card-replica-back shadow-2xl border border-gray-400">
                   <div className="replica-header">
-                    <img src={NANGKA_LOGO} className="replica-logo-seal" alt="Nangka Logo" />
+                    <img  src="./src/assets/logo.png" 
+                    alt="Barangay Logo" 
+                    className="replica-logo-seal" 
+                    />
                     <div className="replica-header-text">
                        <h1 className="main-title">REPUBLIC OF THE PHILIPPINES</h1>
                        <h2 className="city-title">CITY OF MARIKINA</h2>
@@ -752,7 +854,10 @@ const ManageView = () => {
                        <p className="contact-info">0998-2706-879 - BARANGAY ACTION CENTER</p>
                     </div>
                     <div className="replica-logo-right">
-                       <img src={BAGONG_PILIPINAS} className="replica-logo-bagong" />
+                       <img  src="./src/assets/bagongpinas.png" 
+                        alt="Bpinas Logo" 
+                        className="replica-logo-bagong" 
+                        />
                     </div>
                   </div>
                   <div className="replica-body-back">
@@ -826,14 +931,17 @@ const ManageView = () => {
                       <InfoItem label="Sex" value={viewRecord.sex || 'Male'} />
                       <InfoItem label="Birthdate" value={viewRecord.birthdate || 'N/A'} />
                     </div>
-                    <InfoItem label="Contact Number" value={viewRecord.contactNo || 'N/A'} />
+                    <div className="grid grid-cols-2 gap-4">
+                      <InfoItem label="Age" value={viewRecord.age || 'N/A'} />
+                      <InfoItem label="Contact Number" value={viewRecord.contactNo || 'N/A'} />
+                    </div>
                     <InfoItem label="System ID" value={viewRecord.id} mono />
                   </div>
                 </section>
                 <section className="bg-purple-50/50 p-6 rounded-2xl border border-purple-100">
                   <h4 className="flex items-center gap-3 font-black uppercase text-xs text-purple-400 mb-4 tracking-widest">Disability Details</h4>
                   <div className="space-y-4">
-                    <InfoItem label="Classification" value={viewRecord.disabilityType} />
+                    <InfoItem label="Classification" value={getDisabilityName(viewRecord.disabilityType)} />
                     <InfoItem label="Cause" value={viewRecord.disabilityCause || 'N/A'} />
                     <InfoItem label="Cluster Assignment" value={`Cluster ${viewRecord.clusterGroupNo}`} />
                     <InfoItem label="Status" value={viewRecord.status || 'Active'} />

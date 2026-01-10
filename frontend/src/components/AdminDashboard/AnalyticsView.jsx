@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Calendar, RefreshCw, Users, Clock, FileDown, Printer, ShieldAlert } from 'lucide-react';
-import { analyticsAPI } from '../api';
+import { analyticsAPI } from '../../api';
 
 const AnalyticsView = () => {
   const [loading, setLoading] = useState(true);
@@ -171,7 +171,11 @@ const AnalyticsView = () => {
                 </div>
               ));
             })() : (
-              <div className="text-gray-400 italic">No disability data available</div>
+              <div className="text-gray-400 italic">
+                <p>No disability data available</p>
+                <p className="text-red-500 font-bold">PAKI CONNECT SA DB!!!</p>
+                </div>
+              
             )}
           </div>
         </div>

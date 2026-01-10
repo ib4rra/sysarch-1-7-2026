@@ -46,11 +46,12 @@ const VerifyIDView = () => {
 
   const mockDatabase = [
     { 
-      id: 'PWD-2024-001', 
+      id: 'PWD-MRK-CL01-2026-0001', 
+      formattedPwdId: 'PWD-MRK-CL01-2026-0001',
       firstName: 'JEROME', 
       lastName: 'SANTOS', 
       middleName: 'M.', 
-      disabilityType: 'Deaf / Hard of Hearing', 
+      disabilityType: 'Hearing Impairment', 
       hoa: 'Nangka Hills', 
       dateRegistered: '2024-01-15',
       age: 24, 
@@ -60,11 +61,12 @@ const VerifyIDView = () => {
       remarks: 'None'
     },
     { 
-      id: 'PWD-2024-002', 
+      id: 'PWD-MRK-CL01-2026-0002', 
+      formattedPwdId: 'PWD-MRK-CL01-2026-0002',
       firstName: 'ANTON', 
       lastName: 'DELA CRUZ', 
       middleName: 'R.', 
-      disabilityType: 'Visual Disability', 
+      disabilityType: 'Visual Impairment', 
       hoa: 'Twinville', 
       dateRegistered: '2024-02-10',
       age: 30, 
@@ -74,11 +76,12 @@ const VerifyIDView = () => {
       remarks: 'None'
     },
     { 
-      id: 'PWD-2024-003', 
+      id: 'PWD-MRK-CL02-2026-0001', 
+      formattedPwdId: 'PWD-MRK-CL02-2026-0001',
       firstName: 'KAIRA', 
       lastName: 'VILLANUEVA', 
       middleName: 'G.', 
-      disabilityType: 'Learning Disability', 
+      disabilityType: 'Intellectual Disability', 
       hoa: 'Riverside', 
       dateRegistered: '2023-11-22',
       age: 19, 
@@ -258,6 +261,9 @@ const VerifyIDView = () => {
         <p className="text-gray-500 max-w-lg mx-auto">
           Verify the authenticity of Barangay Nangka PWD Membership IDs through our secure system.
         </p>
+         <p className="text-gray-500 max-w-lg mx-auto text-red-500 font-bold">
+          Gawan na ng backend itong verify ID, para ma integrate sa database natin!
+        </p>
       </div>
 
       <div className="bg-gray-100 p-1 rounded-xl flex max-w-md mx-auto">
@@ -358,7 +364,7 @@ const VerifyIDView = () => {
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
                     <input 
                       type="text" 
-                      placeholder="e.g. PWD-2024-001"
+                      placeholder="e.g. PWD-MRK-CL01-2026-0001"
                       value={searchId}
                       onChange={(e) => setSearchId(e.target.value)}
                       className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-200 rounded-xl text-lg font-bold focus:outline-none focus:ring-2 focus:ring-[#800000]/10 focus:border-[#800000] transition-all text-gray-700"
@@ -409,7 +415,7 @@ const VerifyIDView = () => {
                   </div>
                   <div>
                     <h5 className="text-xl font-black text-gray-800 uppercase leading-none">{result.firstName} {result.lastName}</h5>
-                    <p className="text-xs text-gray-500 font-mono mt-1">{result.id}</p>
+                    <p className="text-xs text-gray-500 font-mono mt-1">{result.formattedPwdId || result.id}</p>
                   </div>
                 </div>
 

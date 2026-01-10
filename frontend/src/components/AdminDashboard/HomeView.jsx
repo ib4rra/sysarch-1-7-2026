@@ -11,7 +11,7 @@ import {
   Edit,
   Trash2
 } from 'lucide-react';
-import { announcementsAPI } from '../api';
+import { announcementsAPI } from '../../api';
 
 const HomeView = () => {
   const [announcements, setAnnouncements] = useState([]);
