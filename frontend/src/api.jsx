@@ -147,7 +147,8 @@ export const pwdAdminAPI = {
     return response.data;
   },
   getRegistrantById: async (pwdId) => {
-    const response = await API.get(`/pwd/${pwdId}`);
+    // Use the new verification endpoint for ID verification
+    const response = await API.get(`/pwd/verify/${pwdId}`);
     return response.data;
   },
   createRegistrant: async (payload) => {
@@ -187,6 +188,32 @@ export const disabilityAPI = {
   deleteDisabilityRecord: async (recordId) => {
     const response = await API.delete(`/disability/record/${recordId}`);
     return response.data;
+  }
+};
+
+/**
+ * Settings & Admin API
+ */
+export const settingsAPI = {
+  getInterface: async () => {
+    const response = await API.get('/admin/interface');
+    return response.data;
+  },
+  saveInterface: async (data) => {
+    const response = await API.put('/admin/interface', data);
+    return response.data;
+  },
+  getLogs: async (page = 1) => {
+    const response = await API.get(`/admin/logs?page=${page}&limit=10`);
+    return response.data;
+  },
+  getStaff: async () => {
+    const response = await API.get('/admin/users');
+    return response.data;
+  },
+  downloadBackup: () => {
+    // Direct window open for file download
+    window.open('http://localhost:5000/api/admin/backup', '_blank');
   }
 };
 

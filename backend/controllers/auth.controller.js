@@ -605,9 +605,9 @@ export const getTestUsers = async (req, res) => {
       `SELECT person_id, fullname, username, role_id FROM person_role_assignment`
     );
 
-    // Get PWD users
+    // Get PWD users (include suffix)
     const [pwdUsers] = await db.query(
-      `SELECT pul.pwd_id, pul.login_username, pu.firstname, pu.lastname
+      `SELECT pul.pwd_id, pul.login_username, pu.firstname, pu.lastname, pu.suffix
        FROM pwd_user_login pul
        JOIN Nangka_PWD_user pu ON pul.pwd_id = pu.pwd_id`
     );

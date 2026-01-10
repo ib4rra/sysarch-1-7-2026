@@ -1,33 +1,83 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { 
-  Search, 
-  Plus, 
-  Edit2, 
-  Trash2, 
-  Filter, 
-  X, 
-  Eye, 
-  Printer, 
-  Camera, 
-  Save,
-  User,
-  HeartPulse,
-  MoreHorizontal,
-  CreditCard,
-  ChevronLeft,
-  ChevronRight,
-  MapPin,
-  Upload,
-  FileText,
-  Phone
-} from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Filter, X, Eye, Printer, Camera, Save,User,HeartPulse,MoreHorizontal,CreditCard,ChevronLeft,ChevronRight,MapPin,Upload,FileText,Phone, Download, CheckCircle, AlertTriangle } from 'lucide-react';
 import { pwdAdminAPI } from '../../api';
+
 
 // Constants for official logos
 const BAGONG_PILIPINAS = "https://upload.wikimedia.org/wikipedia/commons/f/f6/Bagong_Pilipinas_logo.png";
 const MARIKINA_SEAL = "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Seal_of_Marikina.svg/1200px-Seal_of_Marikina.svg.png";
 
+// --- CONFIRMATION MODAL COMPONENT ---
+const ConfirmationModal = ({ isOpen, title, message, type = 'info', onConfirm, onCancel, isLoading }) => {
+  if (!isOpen) return null;
+
+  const styles = {
+    danger: {
+      bg: 'bg-red-50', icon: <Trash2 size={32} className="text-red-600" />, btn: 'bg-red-600 hover:bg-red-700 text-white'
+    },
+    info: {
+      bg: 'bg-blue-50', icon: <CheckCircle size={32} className="text-blue-600" />, btn: 'bg-blue-600 hover:bg-blue-700 text-white'
+    },
+    warning: {
+      bg: 'bg-amber-50', icon: <AlertTriangle size={32} className="text-amber-600" />, btn: 'bg-amber-600 hover:bg-amber-700 text-white'
+    }
+  };
+
+  const currentStyle = styles[type] || styles.info;
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 transform scale-100 transition-all">
+        <div className="flex flex-col items-center text-center space-y-4">
+          <div className={`w-16 h-16 rounded-full flex items-center justify-center ${currentStyle.bg} mb-2`}>
+            {currentStyle.icon}
+          </div>
+          <h3 className="text-xl font-black text-gray-800">{title}</h3>
+          <p className="text-sm text-gray-500 font-medium leading-relaxed">
+            {message}
+          </p>
+          <div className="flex gap-3 w-full pt-4">
+            <button 
+              onClick={onCancel}
+              disabled={isLoading}
+              className="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors text-sm"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={onConfirm}
+              disabled={isLoading}
+              className={`flex-1 py-3 font-bold rounded-xl transition-all shadow-lg active:scale-95 text-sm flex items-center justify-center gap-2 ${currentStyle.btn} disabled:opacity-50`}
+            >
+              {isLoading ? 'Processing...' : 'Confirm'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ManageView = () => {
+    // Export CSV handler
+    const handleExportCSV = () => {
+      if (!localRecords || localRecords.length === 0) return;
+      const replacer = (key, value) => value === null || value === undefined ? '' : value;
+      const header = Object.keys(localRecords[0]);
+      const csv = [
+        header.join(','),
+        ...localRecords.map(row => header.map(fieldName => JSON.stringify(row[fieldName], replacer)).join(','))
+      ].join('\r\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'pwd_users.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    };
   const [localRecords, setLocalRecords] = useState([]); // Local state for records
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -49,6 +99,11 @@ const ManageView = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Delete confirmation state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletingRecord, setDeletingRecord] = useState(null);
+  const [deletingLoading, setDeletingLoading] = useState(false);
+
   const [filterCriteria, setFilterCriteria] = useState({
     status: '',
     disabilityType: '',
@@ -69,18 +124,85 @@ const ManageView = () => {
     { id: 7, name: "Multiple Disabilities" }
   ];
 
-  // Helper function to get disability ID from name
-  const getDisabilityId = (disabilityName) => {
-    const disability = disabilityTypes.find(d => d.name === disabilityName);
-    return disability ? disability.id : null;
-  };
+ // --- HELPER FUNCTIONS FOR DATA NORMALIZATION ---
 
-  // Helper function to get disability name from ID
+  // 1. Get Disability Name from ID (for Table Display)
   const getDisabilityName = (disabilityId) => {
     if (!disabilityId) return 'N/A';
     const idNum = parseInt(disabilityId);
     const disability = disabilityTypes.find(d => d.id === idNum);
     return disability ? disability.name : 'N/A';
+  };
+
+  // 2. Get Disability ID from Name (for Saving to DB)
+  const getDisabilityId = (disabilityName) => {
+    const disability = disabilityTypes.find(d => d.name === disabilityName);
+    return disability ? disability.id : null;
+  };
+
+  // 3. FIX FOR EDIT FORM: Convert ID to Name so the Dropdown selects it correctly
+  const getDisabilityValueForForm = (record) => {
+    if (!record) return '';
+    // Check both snake_case and camelCase
+    const val = record.disabilityType || record.disability_type; 
+    
+    // If it is a number (ID), find the name
+    if (!isNaN(val)) {
+      const found = disabilityTypes.find(t => t.id === parseInt(val));
+      return found ? found.name : '';
+    }
+    // If it is already a string (Name), return it
+    return val || '';
+  };
+
+  // 4. FIX FOR BIRTHDATE: Convert ISO timestamp to YYYY-MM-DD
+  const formatDateForInput = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return ''; 
+    return date.toISOString().split('T')[0];
+  };
+
+  // 5. Calculate Age dynamically
+  const calculateAge = (birthdate) => {
+    if (!birthdate) return '';
+    const dob = new Date(birthdate);
+    const diff_ms = Date.now() - dob.getTime();
+    const age_dt = new Date(diff_ms);
+    return Math.abs(age_dt.getUTCFullYear() - 1970);
+  };
+
+  // Normalize record fields to a consistent shape for the UI
+  const normalizeRecord = (r) => {
+    if (!r) return r;
+    return {
+      // identity preserved
+      ...r,
+      // names
+      firstName: r.firstName || r.firstname || r.FIRSTNAME || '',
+      middleName: r.middleName || r.middlename || r.MIDDLENAME || '',
+      lastName: r.lastName || r.lastname || r.LASTNAME || '',
+      // contact
+      contactNo: r.contactNo || r.contact_no || r.contact || 'N/A',
+      // id
+      pwd_id: r.pwd_id || r.pwdId || r.id || r.PWD_ID || null,
+      formattedPwdId: r.formattedPwdId || r.pwd_id || r.id || r.pwdId || null,
+      // disability
+      disabilityType: r.disabilityType || r.disability_type || r.disability || null,
+      disabilityCause: r.disabilityCause || r.disability_cause || r.disability_cause_detail || null,
+      // guardian
+      guardian: r.guardian || r.guardian_name || r.guardianName || null,
+      guardianContact: r.guardianContact || r.guardian_contact || r.guardian_contact_no || null,
+      // cluster and status
+      clusterGroupNo: r.clusterGroupNo || r.cluster_group_no || r.cluster || null,
+      status: r.status || r.registration_status || r.registrationStatus || null,
+      // address and hoa
+      address: r.address || r.full_address || r.ADDRESS || '',
+      hoa: r.hoa || r.hoa_name || r.homeowners || null,
+      barangay: r.barangay || r.barangay_name || null,
+      // birthdate
+      birthdate: r.birthdate || r.birth_date || r.dateOfBirth || null,
+    };
   };
 
   // Load records on component mount - only once
@@ -139,9 +261,19 @@ const ManageView = () => {
       const search = searchQuery.toLowerCase();
       
       const matchesSearch = name.includes(search) || id.includes(search);
-      const matchesStatus = filterCriteria.status ? row.registration_status === filterCriteria.status : true;
-      const matchesType = filterCriteria.disabilityType ? getDisabilityName(row.disabilityType || row.disability_type) === filterCriteria.disabilityType : true;
-      const matchesCluster = filterCriteria.clusterGroupNo ? (row.clusterGroupNo || row.cluster_group_no) === filterCriteria.clusterGroupNo : true;
+      const matchesStatus = filterCriteria.status ? String(row.registration_status || row.status || '').toLowerCase() === String(filterCriteria.status).toLowerCase() : true;
+      const matchesType = filterCriteria.disabilityType ? String(getDisabilityName(row.disabilityType || row.disability_type) || '').toLowerCase() === String(filterCriteria.disabilityType).toLowerCase() : true;
+      
+      // Debug cluster filtering
+      let matchesCluster = true;
+      if (filterCriteria.clusterGroupNo) {
+        const rowCluster = String(row.cluster_group_no || row.clusterGroupNo || '').trim();
+        const filterCluster = String(filterCriteria.clusterGroupNo).trim();
+        matchesCluster = rowCluster === filterCluster;
+        if (row.firstname === 'IVELL') { // Debug log for one record
+          console.log(`Cluster filter debug: row=${rowCluster} vs filter=${filterCluster}, match=${matchesCluster}`);
+        }
+      }
 
       return matchesSearch && matchesStatus && matchesType && matchesCluster;
     });
@@ -158,11 +290,24 @@ const ManageView = () => {
   };
 
   const handleOpenEdit = (record) => {
-    setEditingRecord(record);
-    if (record?.disabilityCause) {
-      const [type, specific] = record.disabilityCause.split(' - ');
-      setCauseType(type || '');
-      setCauseSpecific(specific || '');
+    // Normalize record for editing modal
+    setEditingRecord({
+      ...record,
+      birthdate: record.birthdate || record.birth_date || '',
+      disabilityType: getDisabilityValueForForm(record),
+      suffix: record.suffix || '',
+    });
+    // Check both snake_case and camelCase for cause
+    const cause = record.disabilityCause || record.disability_cause;
+    if (cause) {
+      const parts = cause.split(' - ');
+      if(parts.length > 1) {
+          setCauseType(parts[0] || '');
+          setCauseSpecific(parts[1] || '');
+      } else {
+          setCauseType(cause);
+          setCauseSpecific('');
+      }
     } else {
       setCauseType('');
       setCauseSpecific('');
@@ -171,21 +316,32 @@ const ManageView = () => {
   };
 
   const handleDelete = async (record) => {
-    if (window.confirm(`Are you sure you want to delete ${record.firstName} ${record.lastName}?`)) {
-      try {
-        setIsLoading(true);
-        // Use pwd_id or id depending on what the API returns
-        const pwdId = record.pwd_id || record.id;
-        await pwdAdminAPI.deleteRegistrant(pwdId);
-        setLocalRecords(prev => prev.filter(r => (r.pwd_id || r.id) !== pwdId));
-        alert('Record deleted successfully!');
-      } catch (err) {
-        console.error('Error deleting record:', err);
-        alert('Error: ' + (err.message || 'Failed to delete record'));
-      } finally {
-        setIsLoading(false);
-      }
+    // Open confirmation modal
+    setDeletingRecord(record);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingRecord) return;
+    setDeletingLoading(true);
+    try {
+      const pwdId = deletingRecord.pwd_id || deletingRecord.id;
+      await pwdAdminAPI.deleteRegistrant(pwdId);
+      setLocalRecords(prev => prev.filter(r => (r.pwd_id || r.id) !== pwdId));
+      setDeleteConfirmOpen(false);
+      setDeletingRecord(null);
+      alert('Record deleted successfully!');
+    } catch (err) {
+      console.error('Error deleting record:', err);
+      alert('Error: ' + (err.response?.data?.message || err.message || 'Failed to delete record'));
+    } finally {
+      setDeletingLoading(false);
     }
+  };
+
+  const cancelDelete = () => {
+    setDeleteConfirmOpen(false);
+    setDeletingRecord(null);
   };
 
   const handleSaveRecord = async (e) => {
@@ -210,12 +366,12 @@ const ManageView = () => {
         firstName: String(formData.get('firstName') || '').toUpperCase(),
         lastName: String(formData.get('lastName') || '').toUpperCase(),
         middleName: String(formData.get('middleName') || '').toUpperCase(),
+        suffix: String(formData.get('suffix') || '').toUpperCase(),
         gender: String(formData.get('sex') || 'Male'),  // Backend expects 'gender', not 'sex'
         dateOfBirth: String(formData.get('birthdate') || ''),  // Backend expects 'dateOfBirth'
         civilStatus: 'Single',  // Default value - can be extended if needed
         hoa: String(formData.get('hoa') || ''),
         address: String(formData.get('address') || '').toUpperCase(),
-        barangay: 'Nangka',  // Default to Nangka
         contactNumber: String(formData.get('contactNo') || ''),  // Backend expects 'contactNumber'
         emergencyContact: String(formData.get('guardian') || '').toUpperCase(),  // Maps to 'emergencyContact'
         emergencyNumber: String(formData.get('guardianContact') || ''),  // Maps to 'emergencyNumber'
@@ -334,6 +490,21 @@ const ManageView = () => {
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
+      {deleteConfirmOpen && (
+        <ConfirmationModal
+          isOpen={deleteConfirmOpen}
+          title={"Delete Record?"}
+          message={
+            deletingRecord
+              ? `Are you sure you want to delete ${deletingRecord.firstName || deletingRecord.firstname || ''} ${deletingRecord.lastName || deletingRecord.lastname || ''}? This action cannot be undone.`
+              : 'Are you sure you want to delete this record?'
+          }
+          type="danger"
+          onConfirm={confirmDelete}
+          onCancel={cancelDelete}
+          isLoading={deletingLoading}
+        />
+      )}
       <style>{`
         input[type="text"],
         input[type="tel"],
@@ -372,25 +543,64 @@ const ManageView = () => {
         textarea::-moz-placeholder {
           color: #9ca3af !important;
         }
+        /* --- NEW CUSTOM SCROLLBAR STYLES --- */
+  
+        /* Width for vertical scrollbar, Height for horizontal */
+        ::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+
+        /* The background of the scrollbar (transparent looks cleaner) */
+        ::-webkit-scrollbar-track {
+          background: transparent;
+          margin: 4px;
+        }
+
+        /* The moving part of the scrollbar */
+        ::-webkit-scrollbar-thumb {
+          background: #d1d5db; /* Light Gray */
+          border-radius: 20px;
+          border: 2px solid transparent; /* Creates padding effect */
+          background-clip: content-box;
+        }
+
+        /* Hover effect - turns to your theme color */
+        ::-webkit-scrollbar-thumb:hover {
+          background: #800000; /* Marikina Red */
+          border: 0;
+          border-radius: 20px;
+        }
+
+        /* Firefox Support */
+        * {
+          scrollbar-width: thin;
+          scrollbar-color: #d1d5db transparent;
+        }
       `}</style>
       {/* Header section (Summary cards removed as requested) */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print border-t border-gray-200 pt-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print border-t">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Citizen Records</h2>
           <p className="text-sm text-gray-500">Manage, verify, and print official PWD identification cards.</p>
-          
-          <p className="text-sm text-red-500">1. Paki ayos nung table; pakilagyan ng Barangay sa MODAL, sa DATABASE may table na barangay pero wala naman sa form</p>
-          <p className="text-sm text-red-500">2. Yung suffix dapat kahit wala yung user nakikita padin yung table, dapat naka N/A lang</p>
-          <p className="text-sm text-red-500">3. Yung filters paki ayos nadin, pag cluster pinipili walang lumalabas dahil yung name ata "Group" instead "Cluster"</p>
-          <p className="text-sm text-red-500">4. Yung preview modal gawing responsive and dynamic; yung mga imported data din</p>
-          <p className="text-sm text-red-500">5. Yung Preview ID wala pang Database, taska yung print preview paki ayos din</p>
+          <p className="text-sm text-red-500">1. Yung suffix dapat kahit wala yung user nakikita padin yung table, dapat naka N/A lang</p>
+          <p className="text-sm text-red-500">2. Yung filters paki ayos nadin, pag cluster pinipili walang lumalabas dahil yung name ata "Group" instead "Cluster"</p>
+          <p className="text-sm text-red-500">3. Yung preview modal gawing responsive and dynamic; yung mga imported data din</p>
         </div>
-        <button 
-          onClick={handleAddNew}
-          className="flex items-center gap-2 px-6 py-3 bg-[#800000] text-white text-sm font-bold rounded-xl hover:bg-[#600000] shadow-lg transition-all active:scale-95"
-        >
-          <Plus size={18} /> New Record
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 px-5 py-3 bg-white text-gray-700 border border-gray-300 rounded-xl shadow-sm text-sm font-bold hover:bg-gray-50 hover:text-[#800000] transition-all active:scale-95"
+          >
+            <Download size={18} /> Export CSV
+          </button>
+          <button 
+            onClick={handleAddNew}
+            className="flex items-center gap-2 px-6 py-3 bg-[#800000] text-white text-sm font-bold rounded-xl hover:bg-[#600000] shadow-lg transition-all active:scale-95"
+          >
+            <Plus size={18} /> New Record
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 flex flex-col md:flex-row gap-4 items-center no-print">
@@ -463,6 +673,7 @@ const ManageView = () => {
         </div>
       </div>
 
+     
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden no-print">
         <div className="overflow-x-auto">
           <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
@@ -479,102 +690,109 @@ const ManageView = () => {
                   <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Age</th>
                   <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Contact No</th>
                   <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Address</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Barangay</th>
                   <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">HOA</th>
                   <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Disability Type</th>
                   <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Disability Cause</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Status</th>
                   <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Guardian Name</th>
                   <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Guardian Contact</th>
                   <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Reg Date</th>
                   <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Cluster</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Active</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Status</th>
                   <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {currentItems.length > 0 ? currentItems.map((row, idx) => (
-                  <tr key={row.pwd_id || row.id} className={`transition-all duration-200 hover:bg-gradient-to-r hover:from-[#800000]/5 hover:to-red-50/50 group ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
-                    <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">{row.formattedPwdId || <span className="text-gray-400">—</span>}</td>
-                    <td className="px-5 py-4 text-gray-900 whitespace-nowrap">{row.firstname || row.firstName || <span className="text-gray-400">—</span>}</td>
-                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap">{row.middlename || row.middleName || <span className="text-gray-400">—</span>}</td>
-                    <td className="px-5 py-4 text-gray-900 whitespace-nowrap">{row.lastname || row.lastName || <span className="text-gray-400">—</span>}</td>
-                    <td className="px-5 py-4 text-gray-900 whitespace-nowrap"><span className="text-gray-400">!!PAKI AYOS!!</span></td>
-                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap">{row.sex || <span className="text-gray-400">—</span>}</td>
-                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.birthdate ? new Date(row.birthdate).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : <span className="text-gray-400">—</span>}</td>
-                    <td className="px-5 py-4 text-gray-900 whitespace-nowrap text-sm">{row.age || <span className="text-gray-400">—</span>}</td>
-                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.contact_no || row.contactNo || <span className="text-gray-400">—</span>}</td>
-                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap max-w-xs truncate text-xs">{row.address || <span className="text-gray-400">—</span>}</td>
-                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap max-w-xs truncate text-xs"><span className="text-gray-400">!!PAKI AYOS!!</span></td>
-                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs font-medium">{row.hoa || <span className="text-gray-400">—</span>}</td>
-                    <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">{getDisabilityName(row.disability_type || row.disabilityType) || <span className="text-gray-400">—</span>}</td>
-                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap max-w-xs truncate text-xs">{row.disability_cause || row.disabilityCause || <span className="text-gray-400">—</span>}</td>
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                        (row.registration_status || row.status) === 'Active' 
-                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300 shadow-sm' 
-                          : 'bg-amber-100 text-amber-800 border-amber-300 shadow-sm'
-                      }`}>
-                        {row.registration_status || row.status || '—'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.guardian_name || row.guardianName || <span className="text-gray-400">—</span>}</td>
-                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.guardian_contact || row.guardianContact || <span className="text-gray-400">—</span>}</td>
-                    <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.registration_date ? new Date(row.registration_date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : <span className="text-gray-400">—</span>}</td>
-                    <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">Group {row.cluster_group_no || row.clusterGroupNo || 'N/A'}</td>
-                    <td className="px-5 py-4 text-gray-800 whitespace-nowrap">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                        row.is_active 
-                          ? 'bg-blue-100 text-blue-800 border-blue-300 shadow-sm' 
-                          : 'bg-gray-200 text-gray-700 border-gray-300 shadow-sm'
-                      }`}>
-                        {row.is_active ? '✓ Yes' : 'No'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button onClick={() => handleOpenEdit(row)} className="p-2 text-gray-500 hover:text-[#800000] hover:bg-red-100 rounded-lg transition-all duration-150" title="Edit">
-                          <Edit2 size={16} />
-                        </button>
-                        <button onClick={() => handleDelete(row)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-100 rounded-lg transition-all duration-150" title="Delete">
-                          <Trash2 size={16} />
-                        </button>
-                        <div className="relative inline-block text-left z-10">
-                          <button onClick={() => setOpenMenuRowId(openMenuRowId === row.id ? null : row.id)} className="p-2 text-gray-500 hover:text-[#800000] hover:bg-gray-100 rounded-lg transition-all duration-150" title="More">
-                            <MoreHorizontal size={16} />
-                          </button>
-                          {openMenuRowId === row.id && (
-                            <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                              <button 
-                                onClick={() => { setSelectedRecord(row); setOpenMenuRowId(null); }} 
-                                className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-red-50 hover:text-[#800000] flex items-center gap-3 border-b border-gray-100 transition-colors"
-                              >
-                                <CreditCard size={16} /> ID Preview
-                              </button>
-                              <button 
-                                onClick={() => { setViewRecord(row); setShowInfoModal(true); setOpenMenuRowId(null); }} 
-                                className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-red-50 hover:text-[#800000] flex items-center gap-3 transition-colors"
-                              >
-                                <Eye size={16} /> View Details
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                )) : (
-                  <tr>
-                    <td colSpan={19} className="px-5 py-20 text-center">
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="text-gray-400 text-4xl mb-2">📋</div>
-                        <p className="text-gray-500 font-semibold">No records found</p>
-                        <p className="text-gray-400 text-sm">Try adjusting your filters or search</p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
+  {currentItems.length > 0 ? currentItems.map((row, idx) => {
+    // 1. DEFINE A UNIQUE ID (Safety check for pwd_id vs id)
+    const uniqueId = row.pwd_id || row.id;
+
+    return (
+      <tr key={uniqueId} className={`transition-all duration-200 hover:bg-gradient-to-r hover:from-[#800000]/5 hover:to-red-50/50 group ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
+        {/* ... (Your existing columns: PWD ID, Name, etc.) ... */}
+        
+        <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">{row.formattedPwdId || <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-900 whitespace-nowrap">{row.firstname || row.firstName || <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-700 whitespace-nowrap">{row.middlename || row.middleName || <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-900 whitespace-nowrap">{row.lastname || row.lastName || <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium">{(row.suffix || row.Suffix) ? (row.suffix || row.Suffix) : <span className="text-gray-400">N/A</span>}</td>
+        <td className="px-5 py-4 text-gray-700 whitespace-nowrap">{row.sex || <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.birthdate ? new Date(row.birthdate).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-900 whitespace-nowrap text-sm">{row.age || <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.contact_no || row.contactNo || <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-700 whitespace-nowrap max-w-xs truncate text-xs">{row.address || <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs font-medium">{row.hoa || <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">{getDisabilityName(row.disability_type || row.disabilityType) || <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-700 whitespace-nowrap max-w-xs truncate text-xs">{row.disability_cause || row.disabilityCause || <span className="text-gray-400">—</span>}</td>
+        
+        <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.guardian_name || row.guardianName || <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.guardian_contact || row.guardianContact || <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.registration_date ? new Date(row.registration_date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">Group {row.cluster_group_no || row.clusterGroupNo || 'N/A'}</td>
+        
+        <td className="px-5 py-4 whitespace-nowrap">
+  <span className={`w-16 inline-flex justify-center items-center py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+    (row.registration_status || row.status) === 'Active' 
+      ? 'bg-emerald-100 text-emerald-800 border-emerald-300 shadow-sm' 
+      : 'bg-amber-100 text-amber-800 border-amber-300 shadow-sm'
+  }`}>
+    {row.registration_status || row.status || '—'}
+  </span>
+</td>
+
+        {/* --- FIXED ACTION COLUMN (3 DOTS) --- */}
+        <td className="px-5 py-4 text-right">
+          <div className="flex items-center justify-end gap-1.5">
+            <button onClick={() => handleOpenEdit(row)} className="p-2 text-gray-500 hover:text-[#800000] hover:bg-red-100 rounded-lg transition-all duration-150" title="Edit">
+              <Edit2 size={16} />
+            </button>
+            <button onClick={() => handleDelete(row)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-100 rounded-lg transition-all duration-150" title="Delete">
+              <Trash2 size={16} />
+            </button>
+            
+            <div className="relative inline-block text-left z-10">
+              {/* 2. TOGGLE USING UNIQUE ID */}
+              <button 
+                onClick={() => setOpenMenuRowId(openMenuRowId === uniqueId ? null : uniqueId)} 
+                className={`p-2 rounded-lg transition-all duration-150 ${openMenuRowId === uniqueId ? 'text-[#800000] bg-red-50' : 'text-gray-500 hover:text-[#800000] hover:bg-gray-100'}`}
+                title="More"
+              >
+                <MoreHorizontal size={16} />
+              </button>
+              
+              {/* 3. SHOW ONLY IF IDs MATCH */}
+              {openMenuRowId === uniqueId && (
+                <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                  <button 
+                    onClick={() => { setSelectedRecord(row); setOpenMenuRowId(null); }} 
+                    className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-red-50 hover:text-[#800000] flex items-center gap-3 border-b border-gray-100 transition-colors"
+                  >
+                    <CreditCard size={16} /> ID Preview
+                  </button>
+                  <button 
+                    onClick={() => { setViewRecord(normalizeRecord(row)); setShowInfoModal(true); setOpenMenuRowId(null); }} 
+                    className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-red-50 hover:text-[#800000] flex items-center gap-3 transition-colors"
+                  >
+                    <Eye size={16} /> View Details
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  }) : (
+    <tr>
+      <td colSpan={20} className="px-5 py-20 text-center">
+        <div className="flex flex-col items-center gap-2">
+          <div className="text-gray-400 text-4xl mb-2">📋</div>
+          <p className="text-gray-500 font-semibold">No records found</p>
+          <p className="text-gray-400 text-sm">Try adjusting your filters or search</p>
+        </div>
+      </td>
+    </tr>
+  )}
+</tbody>
             </table>
           </div>
         </div>
@@ -614,20 +832,30 @@ const ManageView = () => {
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Last Name *</label>
                     <input name="lastName" type="text" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.lastName || editingRecord?.lastname || ''} required />
                   </div>
+                                  {/* SUFFIX FIX */}
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Suffix</label>
-                    <input name="suffix" type="text" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.suffix || ''} />
+                    <input name="suffix" type="text" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" 
+                      defaultValue={editingRecord?.suffix || ''} 
+                    />
                   </div>
+
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Sex</label>
-                    <select name="sex" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.sex || editingRecord?.sex || 'Male'}>
+                    <select name="sex" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" 
+                      defaultValue={editingRecord?.sex || 'Male'}
+                    >
                       <option>Male</option>
                       <option>Female</option>
                     </select>
                   </div>
+
+                  {/* BIRTHDATE FIX */}
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Birthdate *</label>
-                    <input name="birthdate" type="date" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.birthdate || editingRecord?.birthdate || ''} required />
+                    <input name="birthdate" type="date" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" 
+                      defaultValue={formatDateForInput(editingRecord?.birthdate)} required 
+                    />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Contact Number</label>
@@ -650,16 +878,22 @@ const ManageView = () => {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-4">
+                   {/* DISABILITY TYPE FIX */}
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Disability Type *</label>
-                      <select name="disabilityType" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.disabilityType || editingRecord?.disability_type || ''} required>
+                      <select name="disabilityType" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" 
+                        defaultValue={getDisabilityValueForForm(editingRecord)} required
+                      >
                         <option value="">Select Type</option>
                         {disabilityTypes.map(type => <option key={type.id} value={type.name}>{type.name}</option>)}
                       </select>
                     </div>
+
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Registration Status</label>
-                      <select name="status" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.status || 'Active'}>
+                      <select name="status" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" 
+                        defaultValue={editingRecord?.status || editingRecord?.registration_status || 'Active'}
+                      >
                         <option>Active</option>
                         <option>Pending</option>
                         <option>Inactive</option>
@@ -698,61 +932,69 @@ const ManageView = () => {
               </div>
 
               {/* RESIDENTIAL & SUPPORT SECTION (Integrated from requested layout) */}
-              <div className="space-y-6">
-                <div className="flex items-center gap-3 border-b-3 border-gray-500 pb-3">
-                  <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center text-green-700">
-                    <MapPin size={18} />
-                  </div>
-                  <h4 className="font-black text-[#1F2937] uppercase text-sm tracking-widest">Residential & Support</h4>
+            <div className="space-y-6">
+              <div className="flex items-center gap-3 border-b-3 border-gray-500 pb-3">
+                <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center text-green-700">
+                  <MapPin size={18} />
                 </div>
-                
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                  {/* Left Side: Address & HOA */}
-                  <div className="space-y-6">
+                <h4 className="font-black text-[#1F2937] uppercase text-sm tracking-widest">Residential & Support</h4>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                {/* Left Side: Address Fields */}
+                <div className="space-y-6">
+                  
+                  {/* NEW: Split HOA and Barangay into two columns */}
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Homeowners Association (HOA)</label>
+                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Homeowners Association</label>
                       <input 
                         name="hoa" 
                         type="text" 
                         className="w-full px-4 py-4 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10" 
                         defaultValue={editingRecord?.hoa || ''} 
+                        placeholder="HOA Name"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Full Address *</label>
-                      <textarea 
-                        name="address" 
-                        rows={4}
-                        className="w-full px-4 py-4 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10 resize-none" 
-                        defaultValue={editingRecord?.address || ''}
-                        required
-                      ></textarea>
-                    </div>
+        
                   </div>
 
-                  {/* Right Side: Guardian Box (F9FAFB background) */}
-                  <div className="bg-[#F9FAFB] p-8 rounded-[2rem] border-2 border-gray-400 flex flex-col gap-6 h-full">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Guardian Name</label>
-                      <input 
-                        name="guardian" 
-                        type="text" 
-                        className="w-full px-4 py-4 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10" 
-                        defaultValue={editingRecord?.guardian || editingRecord?.guardian_name || ''} 
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Guardian Contact</label>
-                      <input 
-                        name="guardianContact" 
-                        type="tel" 
-                        className="w-full px-4 py-4 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10" 
-                        defaultValue={editingRecord?.guardianContact || editingRecord?.guardian_contact || ''} 
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Full Address *</label>
+                    <textarea 
+                      name="address" 
+                      rows={4}
+                      className="w-full px-4 py-4 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10 resize-none" 
+                      defaultValue={editingRecord?.address || ''}
+                      placeholder="# House No., Street Name"
+                      required
+                    ></textarea>
+                  </div>
+                </div>
+
+                {/* Right Side: Guardian Box (F9FAFB background) */}
+                <div className="bg-[#F9FAFB] p-8 rounded-[2rem] border-2 border-gray-400 flex flex-col gap-6 h-full">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Guardian Name</label>
+                    <input 
+                      name="guardian" 
+                      type="text" 
+                      className="w-full px-4 py-4 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10" 
+                      defaultValue={editingRecord?.guardian || editingRecord?.guardian_name || ''} 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Guardian Contact</label>
+                    <input 
+                      name="guardianContact" 
+                      type="tel" 
+                      className="w-full px-4 py-4 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10" 
+                      defaultValue={editingRecord?.guardianContact || editingRecord?.guardian_contact || ''} 
+                    />
                   </div>
                 </div>
               </div>
+            </div>
 
               {/* FORM FOOTER ACTIONS */}
               <div className="flex items-center justify-end gap-12 pt-10 border-t-3 border-gray-500">
@@ -777,6 +1019,7 @@ const ManageView = () => {
         </div>
       )}
 
+  
       {/* ID PREVIEW MODAL */}
       {selectedRecord && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto no-print-overlay">
@@ -788,7 +1031,7 @@ const ManageView = () => {
               <button onClick={() => {setSelectedRecord(null); setCapturedPhoto(null);}} className="p-2 hover:bg-gray-100 rounded-full text-gray-400"><X size={24} /></button>
             </div>
 
-            <div className="p-10 grid grid-cols-1 xl:grid-cols-2 gap-12 items-start justify-items-center print:p-0 print:block">
+            <div className="p-6 grid grid-cols-1 xl:grid-cols-2 gap-6 items-start justify-items-center print:p-0 print:block">
               <div className="space-y-12 print:space-y-8 print:w-full print:flex print:flex-col print:items-center">
                 {/* ID FRONT REPLICA */}
                 <div className="id-card-replica id-card-replica-front shadow-2xl border border-gray-400">
@@ -821,8 +1064,11 @@ const ManageView = () => {
                           <div className="replica-photo-box">
                              {capturedPhoto ? <img src={capturedPhoto} /> : <div className="replica-photo-placeholder"><User size={48} className="opacity-10" /></div>}
                           </div>
+                          <div className="replica-signature-line">
+                             <div className="replica-sig-line"><br/></div>
+                          </div>
+
                           <div className="replica-signature-block">
-                             <div className="replica-sig-line"></div>
                              <p>Signature Over Printed Name</p>
                           </div>
                        </div>
@@ -834,7 +1080,7 @@ const ManageView = () => {
                        </div>
                     </div>
                   </div>
-                  <div className="replica-footer"><p>"Ang ID na ito ay para lamang sa mga benepisyo sa Barangay Nangka"</p></div>
+                  <div className="replica-footer"><p>"Ang ID na ito ay para lamang sa mga benepisyo at programa para sa mga taong may kapansanan sa Barangay Nangka"</p></div>
                 </div>
 
                 {/* ID BACK REPLICA */}
@@ -863,17 +1109,26 @@ const ManageView = () => {
                   <div className="replica-body-back">
                     <div className="back-watermark">BARANGAY NANGKA</div>
                     <div className="back-content-z">
-                      <h4 className="emergency-notify-label">IN CASE OF EMERGENCY, PLS, NOTIFY:</h4>
-                      <div className="emergency-fields-group">
-                        <FieldRow label="NAME:" value={selectedRecord.guardian} />
-                        <FieldRow label="CONTACT NO.:" value={selectedRecord.guardianContact} />
-                        <FieldRow label="ADDRESS:" value={selectedRecord.guardianAddress} />
+                      <h4 className="emergency-notify-label">ADDRESS &amp; SUPPORT</h4>
+                      <div className="emergency-fields-group grid grid-cols-1 gap-3">
+                        <FieldRow label="HOA:" value={selectedRecord.hoa || selectedRecord.hoa_name || selectedRecord.homeowners || ''} />
+                        <FieldRow label="FULL ADDRESS:" value={selectedRecord.address || selectedRecord.full_address || selectedRecord.ADDRESS || ''} />
+                        <FieldRow label="GUARDIAN NAME:" value={selectedRecord.guardian || selectedRecord.guardian_name || selectedRecord.emergencyContact || selectedRecord.guardianName || ''} />
+                        <FieldRow label="GUARDIAN CONTACT:" value={selectedRecord.guardianContact || selectedRecord.guardian_contact || selectedRecord.emergencyNumber || selectedRecord.guardian_contact_no || ''} />
                       </div>
+
+                      <div className="back-qr" title="PWD QR Code">
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(selectedRecord.formattedPwdId || selectedRecord.pwd_id || selectedRecord.id || '')}`}
+                          alt="PWD QR"
+                        />
+                      </div>
+
                       <div className="administration-section">
                          <p className="admin-label">UNDER THE ADMINISTRATION OF</p>
                          <div className="admin-signature-line"></div>
                          <p className="admin-name">HON. CELSO R. DELAS ARMAS JR.</p>
-                      </div>
+                      </div> 
                     </div>
                   </div>
                   <div className="replica-footer-back">
@@ -926,24 +1181,34 @@ const ManageView = () => {
                 <section className="bg-gray-50 p-6 rounded-2xl border border-gray-100">
                   <h4 className="flex items-center gap-3 font-black uppercase text-xs text-gray-400 mb-4 tracking-widest">Personal Identification</h4>
                   <div className="space-y-4">
-                    <InfoItem label="Full Name" value={`${viewRecord.firstName} ${viewRecord.middleName} ${viewRecord.lastName}`} />
+                    <InfoItem label="Full Name" value={`${viewRecord.firstName || ''} ${viewRecord.middleName || ''} ${viewRecord.lastName || ''}`.trim()} />
                     <div className="grid grid-cols-2 gap-4">
                       <InfoItem label="Sex" value={viewRecord.sex || 'Male'} />
-                      <InfoItem label="Birthdate" value={viewRecord.birthdate || 'N/A'} />
+                      <InfoItem label="Birthdate" value={viewRecord.birthdate ? (new Date(viewRecord.birthdate).toLocaleDateString('en-CA')) : 'N/A'} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <InfoItem label="Age" value={viewRecord.age || 'N/A'} />
                       <InfoItem label="Contact Number" value={viewRecord.contactNo || 'N/A'} />
                     </div>
-                    <InfoItem label="System ID" value={viewRecord.id} mono />
+                    <InfoItem label="System ID" value={viewRecord.formattedPwdId || viewRecord.pwd_id || viewRecord.id || 'N/A'} mono />
+                    {viewRecord && (
+                      <div className="mt-4">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">QR Code</p>
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(viewRecord.formattedPwdId || viewRecord.pwd_id || viewRecord.id || '')}`}
+                          alt="PWD ID QR"
+                          className="w-32 h-32 object-contain border border-gray-200 rounded-md bg-white"
+                        />
+                      </div>
+                    )}
                   </div>
                 </section>
                 <section className="bg-purple-50/50 p-6 rounded-2xl border border-purple-100">
                   <h4 className="flex items-center gap-3 font-black uppercase text-xs text-purple-400 mb-4 tracking-widest">Disability Details</h4>
                   <div className="space-y-4">
-                    <InfoItem label="Classification" value={getDisabilityName(viewRecord.disabilityType)} />
+                    <InfoItem label="Classification" value={getDisabilityName(viewRecord.disabilityType) || 'N/A'} />
                     <InfoItem label="Cause" value={viewRecord.disabilityCause || 'N/A'} />
-                    <InfoItem label="Cluster Assignment" value={`Cluster ${viewRecord.clusterGroupNo}`} />
+                    <InfoItem label="Cluster Assignment" value={viewRecord.clusterGroupNo ? `Cluster ${viewRecord.clusterGroupNo}` : 'N/A'} />
                     <InfoItem label="Status" value={viewRecord.status || 'Active'} />
                   </div>
                 </section>
@@ -951,7 +1216,7 @@ const ManageView = () => {
                   <h4 className="flex items-center gap-3 font-black uppercase text-xs text-green-400 mb-4 tracking-widest">Address & Support</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <InfoItem label="HOA" value={viewRecord.hoa || 'N/A'} />
-                    <InfoItem label="Full Address" value={viewRecord.address} />
+                    <InfoItem label="Full Address" value={viewRecord.address || 'N/A'} />
                     <InfoItem label="Guardian Name" value={viewRecord.guardian || 'N/A'} />
                     <InfoItem label="Guardian Contact" value={viewRecord.guardianContact || 'N/A'} />
                   </div>
@@ -967,57 +1232,68 @@ const ManageView = () => {
 
       {/* CUSTOM REPLICA STYLES */}
       <style>{`
-        .id-card-replica { width: 500px; height: 315px; background: white; display: flex; flex-direction: column; overflow: hidden; font-family: 'Inter', sans-serif; position: relative; }
-        .id-card-replica-front, .id-card-replica-back { background-color: #FDE4E4; }
-        .replica-header { background: linear-gradient(to right, #4A0000 0%, #800000 50%, #4A0000 100%); color: white; display: flex; align-items: center; justify-content: space-between; padding: 4px 15px; height: 85px; position: relative; }
-        .replica-logo-seal { width: 50px; height: 50px; object-fit: contain; }
-        .replica-header-text { text-align: center; flex: 1; }
-        .main-title { font-size: 11px; font-weight: 800; margin: 0; line-height: 1.1; text-shadow: 1px 1px 2px rgba(0,0,0,0.2); }
-        .city-title { font-size: 13px; font-weight: 900; margin: 1px 0; line-height: 1.1; }
-        .brgy-title { font-size: 13px; font-weight: 900; margin: 0; line-height: 1.1; }
-        .contact-info { font-size: 6px; font-weight: 700; margin: 0; opacity: 1; line-height: 1.2; text-transform: uppercase; }
+        .id-card-replica { width: 500px; height: 320px; background: #FBECEC; display: flex; flex-direction: column; overflow: hidden; font-family: 'Inter', sans-serif; position: relative; border-radius: 4px; }
+        .id-card-replica-front, .id-card-replica-back { background-color: #F8DCDC; }
+        .replica-header { background: linear-gradient(90deg, #5b0000 0%, #800000 50%, #5b0000 100%); color: white; display: flex; align-items: center; justify-content: space-between; padding: 4px 14px; height: 70px; position: relative; }
+        .replica-logo-seal { width: 44px; height: 44px; object-fit: contain; align-self: center; }
+        .replica-header-text { text-align: center; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 0 6px; }
+        .main-title { font-size: 11px; font-weight: 900; margin: 0; line-height: 1.02; text-shadow: none; }
+        .city-title { font-size: 12px; font-weight: 900; margin: 0; line-height: 1.02; }
+        .brgy-title { font-size: 12px; font-weight: 900; margin: 0; line-height: 1.02; }
+        .contact-info { font-size: 6px; font-weight: 700; margin: 0; opacity: 1; line-height: 1.1; text-transform: uppercase; }
         .replica-logo-right { display: flex; flex-direction: column; align-items: center; }
-        .replica-logo-bagong { width: 45px; height: 45px; object-fit: contain; }
+        .replica-logo-bagong { width: 44px; height: 44px; object-fit: contain; align-self: center; }
         
-        .replica-body { padding: 8px 0; flex: 1; display: flex; flex-direction: column; }
-        .replica-title { text-align: center; font-size: 18px; font-weight: 900; color: #000; margin-bottom: 2px; }
-        .replica-top-fields { display: flex; justify-content: center; gap: 20px; margin-bottom: 4px; }
-        .replica-top-fields p { font-size: 11px; font-weight: 800; color: #000; }
-        .replica-top-fields .underline-field { border-bottom: 1.5px solid #000; padding: 0 4px; font-weight: 900; color: #000; }
+        .replica-body { padding: 0 0 10px 0; flex: 1; display: flex; flex-direction: column; }
+        .replica-title { display: flex; justify-content: center; font-size: 11px; font-weight: 900; color: #000; margin-top: 10px; letter-spacing: -0.3px; }
+        .replica-top-fields { display: flex; justify-content: center; gap: 14px;}
+        .replica-top-fields p { font-size: 10px; font-weight: 900; color: #000; }
+        .replica-top-fields .underline-field { border-bottom: 1.5px solid #000; padding: 0 4px; color: #000; }
         
-        .replica-main-content { display: flex; padding: 0 20px; gap: 15px; flex: 1; }
-        .replica-left-col { width: 110px; display: flex; flex-direction: column; align-items: center; }
-        .replica-photo-box { width: 105px; height: 105px; background: white; border: 2px solid #000; overflow: hidden; margin-bottom: 6px; }
+        .replica-main-content { display: flex; padding: 0 10px; gap: 12px; flex: 1; margin-top: 2px; }
+        .replica-left-col { width: 120px; display: flex; flex-direction: column; align-items: center; }
+        .replica-photo-box { width: 100px; height: 100px; background: white; border: 2px solid #000; overflow: hidden; margin-bottom: 6px; }
         .replica-photo-box img { width: 100%; height: 100%; object-fit: cover; }
         
-        .replica-signature-block { width: 100%; text-align: center; margin-top: auto; padding-bottom: 15px; }
-        .replica-sig-line { height: 1.5px; background: #000; width: 100%; margin-bottom: 2px; }
-        .replica-signature-block p { font-size: 7px; font-weight: 900; color: #000; text-transform: uppercase; }
+        /* Signature adjusted to not be bold and to fit under the photo */
+        .replica-signature-line { width: 100%; text-align: center; padding-top: 25px; }
+        .replica-sig-line {width:100%; height: 1px; background: #000; }
+
+        .replica-signature-block { width: 100%; text-align: center; }
+        .replica-signature-block p { font-size: 7px; font-weight: 800; color: #000; text-transform: uppercase; }
         
         .replica-right-col { flex: 1; display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
         .replica-data-row { display: flex; flex-direction: column; gap: 1px; }
-        .replica-data-row label { font-size: 7px; font-weight: 900; color: #000; text-transform: uppercase; }
-        .replica-value { font-size: 12px; font-weight: 800; color: #000 !important; text-transform: uppercase; border-bottom: 1.5px dotted rgba(0,0,0,0.5); padding-bottom: 1px; }
+        .replica-data-row label { font-size: 8px; font-weight: 900; color: #000; text-transform: uppercase; }
+        .replica-value { font-size: 11px; font-weight: 400 !important; font-weight: normal !important; color: #000 !important; text-transform: uppercase; border-bottom: 1.5px dotted rgba(0,0,0,0.45); padding-bottom: 1px; }
 
-        .replica-footer { background-color: #4A0000; color: white; text-align: center; padding: 6px 10px; position: absolute; bottom: 0; width: 100%; }
-        .replica-footer p { font-size: 7px; font-weight: 700; margin: 0; text-transform: uppercase; }
+        .replica-footer { background-color: #800000; color: white; text-align: center; padding: 8px 10px; position: absolute; bottom: 0; width: 100%; }
+        .replica-footer p { font-size: 7px; font-weight: 800; margin: 0; text-transform: uppercase; }
 
-        .replica-body-back { flex: 1; position: relative; padding: 25px 30px; display: flex; flex-direction: column; overflow: hidden; }
-        .back-watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-15deg); font-size: 55px; font-weight: 900; color: rgba(0,0,0,0.05); white-space: nowrap; pointer-events: none; width: 100%; text-align: center; }
+        .replica-body-back { flex: 1; position: relative; padding: 20px 28px; display: flex; flex-direction: column; overflow: hidden; font-size: 12px; }
+        .back-watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-12deg); font-size: 65px; font-weight: 900; color: rgba(0,0,0,0.04); white-space: nowrap; pointer-events: none; width: 100%; text-align: center; }
         .back-content-z { position: relative; z-index: 5; display: flex; flex-direction: column; height: 100%; }
-        .emergency-notify-label { font-size: 14px; font-weight: 900; color: #000; margin-bottom: 15px; text-transform: uppercase; }
-        .emergency-fields-group { display: flex; flex-direction: column; gap: 12px; }
+        .emergency-notify-label { font-size: 13px; font-weight: 700; color: #000; margin-bottom: 8px; text-transform: uppercase; }
+        .emergency-fields-group { display: flex; flex-direction: column; gap: 8px; }
         .field-row { display: flex; align-items: center; gap: 8px; }
-        .field-row label { font-size: 14px; font-weight: 900; color: #000; min-width: 90px; }
-        .field-row span { font-size: 14px; font-weight: 900; color: #000 !important; border-bottom: 2px solid #000; flex: 1; min-height: 18px; line-height: 1; text-transform: uppercase; }
+        .field-row label { font-size: 11px; font-weight: 700; color: #000; min-width: 90px; }
+        .field-row span { font-size: 12px; font-weight: 400; color: #000 !important; border-bottom: 1.5px solid #000; flex: 1; min-height: 18px; line-height: 1.1; text-transform: uppercase; word-break: break-word; white-space: pre-line; }
         
-        .administration-section { margin-top: auto; display: flex; flex-direction: column; align-items: center; padding-bottom: 10px; }
-        .admin-label { font-size: 8px; font-weight: 900; color: #000; margin-bottom: 15px; }
-        .admin-signature-line { width: 220px; height: 1.5px; background: #000; margin-bottom: 2px; }
-        .admin-name { font-size: 14px; font-weight: 900; color: #000; }
+        .administration-section { margin-top: 8px; display: flex; flex-direction: column; align-items: center; padding-bottom: 6px; }
+        .admin-label { font-size: 9px; font-weight: 900; color: #000; margin-bottom: 6px; }
+        .admin-signature-line { width: 240px; height: 2px; background: #000; margin-bottom: 4px; }
+        .admin-name { font-size: 14px; font-weight: 900; color: #000; margin-top: 4px; }
+
+        /* QR code on back side */
+        .back-qr { position: absolute; bottom: 92px; right: 28px; width: 92px; height: 92px; background: white; padding: 6px; border: 2px solid #000; box-sizing: border-box; display:flex; align-items:center; justify-content:center; z-index:6; }
+        .back-qr img { width: 100%; height: 100%; object-fit: contain; display:block; }
+
+        @media print {
+          .back-qr { box-shadow: none !important; border: 1px solid #000 !important; }
+        }
         
-        .replica-footer-back { background-color: #330000; color: white; text-align: center; padding: 6px 30px; position: absolute; bottom: 0; width: 100%; }
-        .replica-footer-back p { font-size: 7px; font-weight: 400; margin: 0; line-height: 1.3; }
+        .replica-footer-back { background-color: #4A0000; color: white; text-align: center; padding: 8px 30px; position: absolute; bottom: 0; width: 100%; }
+        .replica-footer-back p { font-size: 8px; font-weight: 400; margin: 0; line-height: 1.25; }
 
         @media print {
           body * { visibility: hidden !important; }
@@ -1025,7 +1301,7 @@ const ManageView = () => {
           .id-card-replica, .id-card-replica * { visibility: visible !important; display: flex !important; }
           .fixed.inset-0.z-\\[130\\] { visibility: visible !important; display: block !important; position: absolute !important; top: 0 !important; left: 0 !important; background: white !important; }
           .no-print-container { visibility: visible !important; display: block !important; background: white !important; box-shadow: none !important; border: none !important; position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; }
-          .id-card-replica { margin: 0 auto 50px auto !important; page-break-inside: avoid !important; -webkit-print-color-adjust: exact !important; border: 1px solid #ccc !important; box-shadow: none !important; }
+          .id-card-replica { margin: 0 auto 40px auto !important; page-break-inside: avoid !important; -webkit-print-color-adjust: exact !important; border: 1px solid #ccc !important; box-shadow: none !important; }
         }
       `}</style>
     </div>
@@ -1043,7 +1319,7 @@ const DataRow = ({ label, value }) => (
 const FieldRow = ({ label, value }) => (
   <div className="field-row">
     <label>{label}</label>
-    <span>{value || ''}</span>
+    <span>{(value || '').toString().toUpperCase()}</span>
   </div>
 );
 
