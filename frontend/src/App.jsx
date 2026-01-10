@@ -6,6 +6,7 @@ import NotFound from "./pages/share/NotFound";
 import SuperAdminDashboard from "./components/SuperAdminDashboard";
 import AdminDashboard from "./components/AdminDashboard";
 import UserDashboard from "./components/UserDashboard";
+import ManageView from "./components/ManageView";
 
 function App() {
   return (
@@ -31,6 +32,16 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[2]}>
               <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Admin Create/Manage Records */}
+        <Route
+          path="/admin/create-record"
+          element={
+            <ProtectedRoute allowedRoles={[2]}>
+              <ManageView />
             </ProtectedRoute>
           }
         />

@@ -7,6 +7,7 @@ import pwdUserRoutes from './pwd-user.routes.js';
 import disabilityRoutes from './disability.routes.js';
 import claimsRoutes from './claims.routes.js';
 import analyticsRoutes from './analytics.routes.js';
+import announcementsRoutes from './announcements.routes.js';
 
 const router = express.Router();
 
@@ -30,6 +31,7 @@ router.use('/pwd-user', pwdUserRoutes); // PWD user limited access routes
 router.use('/disability', disabilityRoutes);
 router.use('/claims', claimsRoutes);
 router.use('/analytics', analyticsRoutes);
+router.use('/announcements', announcementsRoutes);
 
 export default router;
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Megaphone,
   Calendar,
@@ -6,80 +6,214 @@ import {
   Info,
   Plus,
   X,
-  MessageSquare
+  MessageSquare,
+  Edit,
+  Trash2
 } from 'lucide-react';
+import { announcementsAPI } from '../api';
 
 const HomeView = () => {
-  const [announcements, setAnnouncements] = useState([
-    {
-      id: 1,
-      title: "Barangay Assembly",
-      date: "March 20, 2025 | 3:00 PM",
-      location: "Barangay Hall",
-      desc: "All residents are encouraged to attend the barangay general assembly.",
-      icon: <Megaphone className="text-yellow-500" />,
-      type: "GENERAL"
-    },
-    {
-      id: 2,
-      title: "ID Processing Update",
-      date: "March 15, 2025",
-      desc: "Senior Citizen ID release is now available at the barangay office.",
-      icon: <Info className="text-blue-500" />,
-      tag: "NEW",
-      type: "UPDATE"
-    },
-    {
-      id: 3,
-      title: "Scheduled Power Interruption",
-      date: "March 18, 2025 | 9AM-2PM",
-      desc: "Parts of Barangay Nangka will experience temporary power outage.",
-      icon: <Zap className="text-red-500" />,
-      type: "EMERGENCY"
-    }
-  ]);
-
+  const [announcements, setAnnouncements] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+  const [posting, setPosting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   const [newNotice, setNewNotice] = useState({
     title: '',
-    type: 'GENERAL',
-    content: ''
+    notice_type: 'General',
+    content: '',
+    event_date: '',
+    start_time: '',
+    end_time: ''
   });
 
-  const handlePost = () => {
-    if (!newNotice.title || !newNotice.content) return;
+  // Fetch announcements on component mount
+  useEffect(() => {
+    fetchAnnouncements();
+  }, []);
 
-    const entry = {
-      id: Date.now(),
-      title: newNotice.title,
-      date: new Date().toLocaleDateString('en-US', {
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric'
-      }),
-      desc: newNotice.content,
-      type: newNotice.type,
-      icon:
-        newNotice.type === 'EMERGENCY'
-          ? <Zap className="text-red-500" />
-          : newNotice.type === 'UPDATE'
-          ? <Info className="text-blue-500" />
-          : <Megaphone className="text-yellow-500" />
-    };
+  const fetchAnnouncements = async () => {
+    try {
+      setLoading(true);
+      const response = await announcementsAPI.getAll();
+      
+      if (response.success && response.data) {
+        // Transform database announcements to match UI format
+        const formattedAnnouncements = response.data.map((announcement) => {
+          let dateTimeString = '';
 
-    setAnnouncements([entry, ...announcements]);
-    setIsModalOpen(false);
-    setNewNotice({ title: '', type: 'GENERAL', content: '' });
+          // Prioritize event_date with time if available
+          if (announcement.event_date) {
+            const eventDate = new Date(announcement.event_date).toLocaleDateString('en-US', {
+              month: 'long',
+              day: 'numeric',
+              year: 'numeric'
+            });
+            dateTimeString = eventDate;
+
+            if (announcement.start_time && announcement.end_time) {
+              const startTime12 = formatTime12Hour(announcement.start_time);
+              const endTime12 = formatTime12Hour(announcement.end_time);
+              dateTimeString += ` ${startTime12} - ${endTime12}`;
+            } else if (announcement.start_time) {
+              const startTime12 = formatTime12Hour(announcement.start_time);
+              dateTimeString += ` ${startTime12}`;
+            }
+          } else {
+            // Fallback to created_at only if no event_date
+            dateTimeString = new Date(announcement.created_at).toLocaleDateString('en-US', {
+              month: 'long',
+              day: 'numeric',
+              year: 'numeric'
+            });
+          }
+
+          return {
+            announcement_id: announcement.announcement_id,
+            id: announcement.announcement_id,
+            title: announcement.title,
+            date: dateTimeString,
+            desc: announcement.content,
+            type: announcement.notice_type,
+            icon: getIconForType(announcement.notice_type),
+            posted_by_name: announcement.posted_by_name,
+            event_date: announcement.event_date,
+            start_time: announcement.start_time,
+            end_time: announcement.end_time
+          };
+        });
+        
+        setAnnouncements(formattedAnnouncements);
+        setError(null);
+      }
+    } catch (err) {
+      console.error('Error fetching announcements:', err);
+      setError('Failed to load announcements');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // ✅ helper for type badge (VIEW DETAILS only)
+  const getIconForType = (type) => {
+    switch (type) {
+      case 'Emergency':
+        return <Zap className="text-red-500" />;
+      case 'Update':
+        return <Info className="text-blue-500" />;
+      default:
+        return <Megaphone className="text-yellow-500" />;
+    }
+  };
+
+  const formatTime12Hour = (timeString) => {
+    if (!timeString) return '';
+    
+    // timeString format: "HH:MM:SS" or "HH:MM"
+    const [hours, minutes] = timeString.split(':').slice(0, 2);
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'pm' : 'am';
+    const displayHour = hour % 12 || 12; // Convert 0 to 12
+    
+    return `${displayHour}:${minutes}${ampm}`;
+  };
+
+  const handlePost = async () => {
+    if (!newNotice.title || !newNotice.content) {
+      alert('Please fill in all fields');
+      return;
+    }
+
+    try {
+      setPosting(true);
+      const payload = {
+        title: newNotice.title,
+        content: newNotice.content,
+        notice_type: newNotice.notice_type,
+        event_date: newNotice.event_date || null,
+        start_time: newNotice.start_time || null,
+        end_time: newNotice.end_time || null
+      };
+
+      let response;
+      if (isEditMode && editingId) {
+        // Update existing announcement
+        response = await announcementsAPI.update(editingId, payload);
+      } else {
+        // Create new announcement
+        response = await announcementsAPI.create(payload);
+      }
+
+      if (response.success) {
+        // Refresh announcements list
+        await fetchAnnouncements();
+        setIsModalOpen(false);
+        setIsEditMode(false);
+        setEditingId(null);
+        setNewNotice({ title: '', notice_type: 'General', content: '', event_date: '', start_time: '', end_time: '' });
+      } else {
+        alert('Failed to ' + (isEditMode ? 'update' : 'post') + ' announcement');
+      }
+    } catch (err) {
+      console.error('Error posting announcement:', err);
+      alert('Error: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const handleEdit = (announcement) => {
+    setNewNotice({
+      title: announcement.title,
+      notice_type: announcement.type,
+      content: announcement.desc,
+      event_date: announcement.event_date || '',
+      start_time: announcement.start_time || '',
+      end_time: announcement.end_time || ''
+    });
+    setEditingId(announcement.id);
+    setIsEditMode(true);
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (announcementId) => {
+    setDeletingId(announcementId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingId) return;
+
+    try {
+      const response = await announcementsAPI.delete(deletingId);
+      if (response.success) {
+        await fetchAnnouncements();
+        setDeleteConfirmOpen(false);
+        setDeletingId(null);
+      } else {
+        alert('Failed to delete announcement');
+      }
+    } catch (err) {
+      console.error('Error deleting announcement:', err);
+      alert('Error: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const cancelDelete = () => {
+    setDeleteConfirmOpen(false);
+    setDeletingId(null);
+  };
+
   const getTypeStyle = (type) => {
     switch (type) {
-      case 'EMERGENCY':
+      case 'Emergency':
         return 'bg-red-100 text-red-700 border-red-300';
-      case 'UPDATE':
+      case 'Update':
         return 'bg-blue-100 text-blue-700 border-blue-300';
       default:
         return 'bg-yellow-100 text-yellow-700 border-yellow-300';
@@ -89,91 +223,117 @@ const HomeView = () => {
   return (
     <div className="p-8 max-w-5xl mx-auto relative">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-        <div className="flex items-center gap-3 mb-1">
-          <Megaphone className="text-red-800" size={24} />
-          <h2 className="text-xl font-bold text-gray-800">
-            Announcements & Updates
-          </h2>
+        <div className="flex items-center justify-between gap-3 mb-1">
+          <div className="flex items-center gap-3">
+            <Megaphone className="text-red-800" size={24} />
+            <h2 className="text-xl font-bold text-gray-800">
+              Announcements & Updates
+            </h2>
+          </div>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-red-100 text-red-800 text-sm font-bold rounded-lg hover:bg-red-50 transition-colors"
+          >
+            <Plus size={16} /> Create Announcement
+          </button>
         </div>
 
         <p className="text-sm text-gray-500 mb-8">
           Latest notices from Barangay Nangka
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {announcements.map((item) => (
-            <div
-              key={item.id}
-              className={`${item.id === 1 ? 'md:col-span-2' : ''} bg-gray-50 rounded-xl p-6 border border-gray-100 hover:shadow-md transition-shadow`}
-            >
-              <div className="flex items-start gap-4">
-                <div className="bg-white p-3 rounded-lg shadow-sm">
-                  {item.icon}
-                </div>
-
-                <div className="flex-grow">
-                  <div className="flex items-center gap-2 mb-1">
-                    {item.tag && (
-                      <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded uppercase">
-                        {item.tag}
-                      </span>
-                    )}
-                    <h3 className="font-bold text-gray-800">
-                      {item.title}
-                    </h3>
+        {loading ? (
+          <div className="text-center py-12">
+            <p className="text-gray-500">Loading announcements...</p>
+          </div>
+        ) : error ? (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+            {error}
+          </div>
+        ) : announcements.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-500">No announcements yet.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {announcements.map((item, index) => (
+              <div
+                key={item.id}
+                className={`${index === 0 ? 'md:col-span-2' : ''} bg-gray-50 rounded-xl p-6 border border-gray-100 hover:shadow-md transition-shadow`}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="bg-white p-3 rounded-lg shadow-sm">
+                    {item.icon}
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
-                    <Calendar size={12} />
-                    {item.date}
+                  <div className="flex-grow">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <h3 className="font-bold text-gray-800">
+                        {item.title}
+                      </h3>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEdit(item)}
+                          className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                          title="Edit"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item.id)}
+                          className="p-1 text-red-600 hover:bg-red-50 rounded"
+                          title="Delete"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
+                      <Calendar size={12} />
+                      {item.date}
+                    </div>
+
+                    <p className="text-sm text-gray-600 leading-relaxed mb-4 line-clamp-3">
+                      {item.desc}
+                    </p>
+
+                    <button
+                      onClick={() => setSelectedAnnouncement(item)}
+                      className="text-blue-600 text-sm font-semibold hover:underline"
+                    >
+                      View Details ›
+                    </button>
                   </div>
-
-                  <p className="text-sm text-gray-600 leading-relaxed mb-4 line-clamp-3">
-                    {item.desc}
-                  </p>
-
-                  <button
-                    onClick={() => setSelectedAnnouncement(item)}
-                    className="text-blue-600 text-sm font-semibold hover:underline"
-                  >
-                    View Details ›
-                  </button>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="mt-8 flex items-center gap-2 px-4 py-2 bg-white border border-red-100 text-red-800 text-sm font-bold rounded-lg hover:bg-red-50 transition-colors"
-        >
-          <Plus size={16} /> Create Announcement
-        </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ===============================
-          POST NEW NOTICE MODAL (UNCHANGED)
+          POST NEW NOTICE MODAL
           =============================== */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
-            <div className="bg-[#800000] p-4 flex justify-between items-center text-white">
-              <div className="flex items-center gap-2">
-                <MessageSquare size={20} />
-                <span className="font-bold tracking-wider text-sm">
-                  POST NEW NOTICE
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-md mx-auto my-auto overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="bg-[#800000] p-4 flex justify-between items-center text-white shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <MessageSquare size={20} className="shrink-0" />
+                <span className="font-bold tracking-wider text-sm truncate">
+                  {isEditMode ? 'EDIT ANNOUNCEMENT' : 'POST NEW NOTICE'}
                 </span>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="hover:bg-white/10 p-1 rounded"
+                className="hover:bg-white/10 p-1 rounded shrink-0"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto">
               <div>
                 <label className="block text-[10px] font-bold text-gray-900 mb-2 tracking-widest uppercase">
                   Announcement Title
@@ -194,14 +354,14 @@ const HomeView = () => {
                   Notice Type
                 </label>
                 <div className="flex gap-2">
-                  {['GENERAL', 'UPDATE', 'EMERGENCY'].map((type) => (
+                  {['General', 'Update', 'Emergency'].map((type) => (
                     <button
                       key={type}
                       onClick={() =>
-                        setNewNotice({ ...newNotice, type })
+                        setNewNotice({ ...newNotice, notice_type: type })
                       }
                       className={`flex-1 py-2 text-[10px] font-bold rounded-lg border ${
-                        newNotice.type === type
+                        newNotice.notice_type === type
                           ? 'bg-[#800000] border-[#800000] text-white'
                           : 'bg-white border-slate-200 text-gray-900'
                       }`}
@@ -209,6 +369,49 @@ const HomeView = () => {
                       {type}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-900 mb-2 tracking-widest uppercase">
+                  Event Date
+                </label>
+                <input
+                  type="date"
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-black"
+                  value={newNotice.event_date}
+                  onChange={(e) =>
+                    setNewNotice({ ...newNotice, event_date: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-900 mb-2 tracking-widest uppercase">
+                    Start Time
+                  </label>
+                  <input
+                    type="time"
+                    className="w-full p-2 sm:p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-black"
+                    value={newNotice.start_time}
+                    onChange={(e) =>
+                      setNewNotice({ ...newNotice, start_time: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-900 mb-2 tracking-widest uppercase">
+                    End Time
+                  </label>
+                  <input
+                    type="time"
+                    className="w-full p-2 sm:p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-black"
+                    value={newNotice.end_time}
+                    onChange={(e) =>
+                      setNewNotice({ ...newNotice, end_time: e.target.value })
+                    }
+                  />
                 </div>
               </div>
 
@@ -227,16 +430,22 @@ const HomeView = () => {
                 />
               </div>
 
-              <div className="space-y-3 pt-2">
+              <div className="space-y-2 sm:space-y-3 pt-2">
                 <button
                   onClick={handlePost}
-                  className="w-full py-4 bg-[#800000] text-white font-bold rounded-xl"
+                  disabled={posting}
+                  className="w-full py-3 sm:py-4 bg-[#800000] text-white font-bold rounded-xl disabled:opacity-50 text-sm sm:text-base"
                 >
-                  Post Announcement
+                  {posting ? (isEditMode ? 'Updating...' : 'Posting...') : (isEditMode ? 'Update Announcement' : 'Post Announcement')}
                 </button>
                 <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="w-full py-2 text-gray-900 font-bold text-[10px]"
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setIsEditMode(false);
+                    setEditingId(null);
+                    setNewNotice({ title: '', notice_type: 'General', content: '', event_date: '', start_time: '', end_time: '' });
+                  }}
+                  className="w-full py-2 text-gray-900 font-bold text-[10px] sm:text-xs"
                 >
                   Cancel
                 </button>
@@ -289,6 +498,42 @@ const HomeView = () => {
               <p className="text-gray-700 leading-relaxed whitespace-pre-line text-base">
                 {selectedAnnouncement.desc}
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===============================
+          DELETE CONFIRMATION MODAL
+          =============================== */}
+      {deleteConfirmOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+            <div className="bg-red-50 p-6 border-b border-red-200">
+              <h3 className="text-lg font-bold text-red-800">
+                Delete Announcement?
+              </h3>
+            </div>
+
+            <div className="p-6">
+              <p className="text-gray-700 mb-6">
+                Are you sure you want to delete this announcement? This action cannot be undone.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={cancelDelete}
+                  className="flex-1 py-2 px-4 bg-gray-100 text-gray-800 font-semibold rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="flex-1 py-2 px-4 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         </div>
