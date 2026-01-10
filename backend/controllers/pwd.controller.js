@@ -4,6 +4,51 @@
  */
 
 import * as PwdModel from '../models/pwd.models.js';
+import bcrypt from 'bcryptjs';
+import { generatePwdId } from '../utils/pwdIdGenerator.js';
+import db from '../config/db.js';
+
+
+/**
+ * Get PWD ID from pwd_user_login by login_id
+ * Fetches pwd_id from pwd_user_login and joins with Nangka_PWD_user for complete information
+ */
+export const getPwdID = async (req, res) => {
+  try {
+    const { loginId } = req.params;
+
+    if (!loginId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Login ID is required',
+      });
+    }
+
+    const pwdData = await PwdModel.getPwdIdByLoginId(loginId);
+
+    if (!pwdData) {
+      return res.status(404).json({
+        success: false,
+        message: 'PWD record not found for the given login ID',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'PWD ID retrieved successfully',
+      data: pwdData,
+    });
+  } catch (err) {
+    console.error('Error fetching PWD ID:', err);
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to fetch PWD ID',
+    });
+  }
+};
+  
+
+
 
 /**
  * Get all PWD registrants
@@ -104,11 +149,15 @@ export const createRegistrant = async (req, res) => {
       dateOfBirth,
       gender,
       civilStatus,
+      hoa,
       address,
       barangay,
       contactNumber,
       emergencyContact,
       emergencyNumber,
+      disabilityType,
+      disabilityCause,
+      registrationStatus,
       clusterGroupNo,
     } = req.body;
 
@@ -136,17 +185,53 @@ export const createRegistrant = async (req, res) => {
       dateOfBirth,
       gender,
       civilStatus,
+      hoa,
       address,
       barangay,
       contactNumber,
       emergencyContact,
       emergencyNumber,
+      disabilityType,
+      disabilityCause,
+      registrationStatus,
       clusterGroupNo: clusterGroupNo || 1,
     });
 
+    // After creating the registrant, create PWD user login credentials
+    try {
+      // Convert cluster number to integer (form data comes as string)
+      const clusterNum = parseInt(clusterGroupNo) || 1;
+      
+      // Generate formatted PWD_ID (e.g., PWD-MRK-CL01-2026-0001)
+      const formattedPwdId = await generatePwdId(clusterNum);
+      
+      // Hash surname as password
+      const hashedPassword = await bcrypt.hash(lastName, 10);
+      
+      // Get the numeric pwd_id from the created registrant
+      const numericPwdId = pwd.pwd_id;
+      
+      // Create PWD login record with formatted PWD_ID and numeric reference
+      const [loginResult] = await db.query(
+        `INSERT INTO pwd_user_login (pwd_id, numeric_pwd_id, password_hash, is_active)
+         VALUES (?, ?, ?, TRUE)`,
+        [formattedPwdId, numericPwdId, hashedPassword]
+      );
+
+      // Add formatted PWD_ID to response
+      pwd.formattedPwdId = formattedPwdId;
+    } catch (loginErr) {
+      console.error('Error creating PWD login credentials:', loginErr);
+      // Return error response
+      return res.status(500).json({
+        success: false,
+        message: 'Registrant created but failed to create login credentials: ' + loginErr.message,
+      });
+    }
+
     res.status(201).json({
       success: true,
-      message: 'PWD registrant created successfully',
+      message: 'PWD registrant and login credentials created successfully',
       data: pwd,
     });
   } catch (err) {

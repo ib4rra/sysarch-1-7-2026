@@ -1,372 +1,565 @@
--- ============================================================================
--- Barangay Nangka PWD MIS Database Schema
--- Three-Role-Based Access Control (RBAC)
--- Created: January 7, 2026
--- 
--- Role Structure:
---   role_id 1: super_admin     - System management, admin account creation
---   role_id 2: admin           - Records management, CRUD operations  
---   role_id 4: pwd_user        - PWD users with limited access to own info
--- ============================================================================
+-- phpMyAdmin SQL Dump
+-- version 5.2.1
+-- https://www.phpmyadmin.net/
+--
+-- Host: 127.0.0.1
+-- Generation Time: Jan 10, 2026 at 02:56 AM
+-- Server version: 10.4.32-MariaDB
+-- PHP Version: 8.2.12
 
--- ============================================
--- 1. Roles Table
--- ============================================
-CREATE TABLE IF NOT EXISTS roles (
-  role_id INT PRIMARY KEY AUTO_INCREMENT,
-  role_name VARCHAR(50) UNIQUE NOT NULL,
-  description VARCHAR(255),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+START TRANSACTION;
+SET time_zone = "+00:00";
+
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+
+--
+-- Database: `nangka_mis`
+--
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `activity_logs`
+--
+
+CREATE TABLE `activity_logs` (
+  `log_id` int(11) NOT NULL,
+  `person_id` int(11) NOT NULL,
+  `action` varchar(100) NOT NULL,
+  `entity_type` varchar(100) DEFAULT NULL,
+  `entity_id` int(11) DEFAULT NULL,
+  `old_value` text DEFAULT NULL,
+  `new_value` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 2. Person_In_Charge (Staff/Admin Users)
--- ============================================
--- Stores all admin accounts including:
---   - super_admin (role_id = 1): System administrators
---   - admin (role_id = 2): Person-in-Charge, records management
-CREATE TABLE IF NOT EXISTS Person_In_Charge (
-  person_id INT PRIMARY KEY AUTO_INCREMENT,
-  fullname VARCHAR(255) NOT NULL,
-  username VARCHAR(100) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  role_id INT NOT NULL,
-  position VARCHAR(100),
-  contact_no VARCHAR(20),
-  email VARCHAR(100),
-  avatar_url VARCHAR(255),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  last_login TIMESTAMP NULL,
-  is_active BOOLEAN DEFAULT TRUE,
-  FOREIGN KEY (role_id) REFERENCES roles(role_id) ON DELETE RESTRICT,
-  INDEX idx_username (username),
-  INDEX idx_role (role_id),
-  INDEX idx_active (is_active)
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `announcements`
+--
+
+CREATE TABLE `announcements` (
+  `announcement_id` int(11) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `content` text NOT NULL,
+  `notice_type` enum('General','Update','Emergency') DEFAULT 'General',
+  `posted_by` int(11) DEFAULT NULL,
+  `event_date` date DEFAULT NULL,
+  `start_time` time DEFAULT NULL,
+  `end_time` time DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `is_active` tinyint(1) DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 3. Nangka_PWD_user (PWD Registrants)
--- ============================================
--- Core PWD registration data
-CREATE TABLE IF NOT EXISTS Nangka_PWD_user (
-  pwd_id INT PRIMARY KEY AUTO_INCREMENT,
-  firstname VARCHAR(100) NOT NULL,
-  middlename VARCHAR(100),
-  lastname VARCHAR(100) NOT NULL,
-  suffix VARCHAR(50),
-  sex ENUM('Male', 'Female', 'Other') NOT NULL,
-  birthdate DATE NOT NULL,
-  age INT,
-  civil_status ENUM('Single', 'Married', 'Divorced', 'Widowed', 'Separated') NOT NULL,
-  address TEXT NOT NULL,
-  barangay VARCHAR(100) DEFAULT 'Nangka',
-  contact_no VARCHAR(20),
-  disability_type VARCHAR(100) NULL COMMENT 'Primary disability type (optional, for quick reference)',
-  guardian_name VARCHAR(255),
-  guardian_contact VARCHAR(20),
-  registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  is_active BOOLEAN DEFAULT TRUE,
-  INDEX idx_name (firstname, lastname),
-  INDEX idx_contact (contact_no),
-  INDEX idx_active (is_active)
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `beneficiary_claims`
+--
+
+CREATE TABLE `beneficiary_claims` (
+  `claim_id` int(11) NOT NULL,
+  `pwd_id` int(11) NOT NULL,
+  `claim_type` varchar(100) NOT NULL,
+  `claim_date` date NOT NULL,
+  `claim_amount` decimal(10,2) DEFAULT NULL,
+  `status` enum('pending','approved','denied','processed') DEFAULT 'pending',
+  `processed_by` int(11) DEFAULT NULL,
+  `processing_date` timestamp NULL DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 3a. PWD User Login Credentials
--- ============================================
--- Separate login table for PWD users (role_id = 4 in login responses)
--- PWD users login with: username = pwd_id, password = surname (hashed)
-CREATE TABLE pwd_user_login (
-  login_id INT PRIMARY KEY AUTO_INCREMENT,
-  pwd_id INT NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  last_login TIMESTAMP NULL,
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+-- --------------------------------------------------------
 
-  CONSTRAINT fk_login_pwd
-    FOREIGN KEY (pwd_id)
-    REFERENCES Nangka_PWD_user(pwd_id)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
+--
+-- Table structure for table `disability_types`
+--
 
-  UNIQUE KEY uk_pwd_login (pwd_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-
--- ============================================
--- 4. PWD_MIS (Relationship/Management)
--- ============================================
--- Tracks which admin manages which PWD registrant
-CREATE TABLE IF NOT EXISTS PWD_MIS (
-  pwd_mis_id INT PRIMARY KEY AUTO_INCREMENT,
-  pwd_id INT NOT NULL,
-  person_id INT NOT NULL,
-  registration_status ENUM('registered', 'pending', 'rejected', 'archived') DEFAULT 'pending',
-  date_processed TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  notes TEXT,
-  FOREIGN KEY (pwd_id) REFERENCES Nangka_PWD_user(pwd_id) ON DELETE CASCADE,
-  FOREIGN KEY (person_id) REFERENCES Person_In_Charge(person_id) ON DELETE RESTRICT,
-  UNIQUE KEY unique_pwd_registration (pwd_id, person_id),
-  INDEX idx_status (registration_status)
+CREATE TABLE `disability_types` (
+  `disability_id` int(11) NOT NULL,
+  `disability_name` varchar(100) NOT NULL,
+  `description` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 5. Disability Types
--- ============================================
-CREATE TABLE IF NOT EXISTS disability_types (
-  disability_id INT PRIMARY KEY AUTO_INCREMENT,
-  disability_name VARCHAR(100) NOT NULL UNIQUE,
-  description TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+--
+-- Dumping data for table `disability_types`
+--
+
+INSERT INTO `disability_types` (`disability_id`, `disability_name`, `description`, `created_at`) VALUES
+(1, 'Visual Impairment', 'Blindness or low vision', '2026-01-09 23:42:45'),
+(2, 'Hearing Impairment', 'Deafness or hard of hearing', '2026-01-09 23:42:45'),
+(3, 'Physical Disability', 'Mobility or physical limitations', '2026-01-09 23:42:45'),
+(4, 'Intellectual Disability', 'Cognitive or developmental disability', '2026-01-09 23:42:45'),
+(5, 'Psychosocial Disability', 'Mental health conditions', '2026-01-09 23:42:45'),
+(6, 'Speech Disability', 'Speech or language impairment', '2026-01-09 23:42:45'),
+(7, 'Multiple Disabilities', 'More than one type of disability', '2026-01-09 23:42:45');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `documents`
+--
+
+CREATE TABLE `documents` (
+  `document_id` int(11) NOT NULL,
+  `pwd_id` int(11) NOT NULL,
+  `document_type` varchar(100) NOT NULL,
+  `file_name` varchar(255) NOT NULL,
+  `file_path` varchar(500) NOT NULL,
+  `file_size` int(11) DEFAULT NULL,
+  `mime_type` varchar(50) DEFAULT NULL,
+  `uploaded_by` int(11) DEFAULT NULL,
+  `upload_date` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 6. PWD Disabilities (Many-to-Many)
--- ============================================
-CREATE TABLE pwd_disabilities (
-  pwd_disability_id INT PRIMARY KEY AUTO_INCREMENT,
-  pwd_id INT NOT NULL,
-  disability_id INT NOT NULL,
-  severity ENUM('mild', 'moderate', 'severe') DEFAULT 'moderate',
-  date_identified DATE,
-  notes TEXT,
-  CONSTRAINT fk_pwd_disability_pwd
-    FOREIGN KEY (pwd_id)
-    REFERENCES Nangka_PWD_user(pwd_id)
-    ON DELETE CASCADE
-    ON UPDATE CASCADE,
-  CONSTRAINT fk_pwd_disability_type
-    FOREIGN KEY (disability_id)
-    REFERENCES disability_types(disability_id)
-    ON DELETE RESTRICT
-    ON UPDATE CASCADE,
-  UNIQUE KEY unique_pwd_disability (pwd_id, disability_id)
-) ENGINE=InnoDB;
+-- --------------------------------------------------------
 
+--
+-- Table structure for table `nangka_pwd_user`
+--
 
--- ============================================
--- 7. Beneficiary Claims
--- ============================================
-CREATE TABLE IF NOT EXISTS beneficiary_claims (
-  claim_id INT PRIMARY KEY AUTO_INCREMENT,
-  pwd_id INT NOT NULL,
-  claim_type VARCHAR(100) NOT NULL,
-  claim_date DATE NOT NULL,
-  claim_amount DECIMAL(10, 2),
-  status ENUM('pending', 'approved', 'denied', 'processed') DEFAULT 'pending',
-  processed_by INT,
-  processing_date TIMESTAMP NULL,
-  notes TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (pwd_id) REFERENCES Nangka_PWD_user(pwd_id) ON DELETE CASCADE,
-  FOREIGN KEY (processed_by) REFERENCES Person_In_Charge(person_id) ON DELETE SET NULL,
-  INDEX idx_status (status),
-  INDEX idx_pwd (pwd_id)
+CREATE TABLE `nangka_pwd_user` (
+  `pwd_id` int(11) NOT NULL,
+  `firstname` varchar(100) NOT NULL,
+  `middlename` varchar(100) DEFAULT NULL,
+  `lastname` varchar(100) NOT NULL,
+  `suffix` varchar(50) DEFAULT NULL,
+  `sex` enum('Male','Female','Other') NOT NULL,
+  `birthdate` date NOT NULL,
+  `age` int(11) DEFAULT NULL,
+  `civil_status` enum('Single','Married','Divorced','Widowed','Separated') NOT NULL,
+  `hoa` varchar(255) DEFAULT NULL COMMENT 'Homeowners Association',
+  `address` text NOT NULL,
+  `barangay` varchar(100) DEFAULT 'Nangka',
+  `contact_no` varchar(20) DEFAULT NULL,
+  `disability_type` int(11) DEFAULT NULL COMMENT 'Foreign key reference to disability_types table',
+  `disability_cause` varchar(255) DEFAULT NULL COMMENT 'Cause of disability (e.g., Congenital - Birth Defect)',
+  `registration_status` enum('Active','Pending','Inactive') DEFAULT 'Active' COMMENT 'PWD registration status',
+  `guardian_name` varchar(255) DEFAULT NULL,
+  `guardian_contact` varchar(20) DEFAULT NULL,
+  `registration_date` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `is_active` tinyint(1) DEFAULT 1,
+  `cluster_group_no` int(11) DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 8. Notifications
--- ============================================
-CREATE TABLE IF NOT EXISTS notifications (
-  notification_id INT PRIMARY KEY AUTO_INCREMENT,
-  recipient_id INT NOT NULL,
-  message TEXT NOT NULL,
-  type ENUM('info', 'warning', 'success', 'error') DEFAULT 'info',
-  is_read BOOLEAN DEFAULT FALSE,
-  sender_id INT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (recipient_id) REFERENCES Person_In_Charge(person_id) ON DELETE CASCADE,
-  FOREIGN KEY (sender_id) REFERENCES Person_In_Charge(person_id) ON DELETE SET NULL,
-  INDEX idx_read (is_read, recipient_id)
+--
+-- Dumping data for table `nangka_pwd_user`
+--
+
+INSERT INTO `nangka_pwd_user` (`pwd_id`, `firstname`, `middlename`, `lastname`, `suffix`, `sex`, `birthdate`, `age`, `civil_status`, `hoa`, `address`, `barangay`, `contact_no`, `disability_type`, `disability_cause`, `registration_status`, `guardian_name`, `guardian_contact`, `registration_date`, `updated_at`, `is_active`, `cluster_group_no`) VALUES
+(1, 'SHOBE', 'ROQUE', 'PIERRE', NULL, 'Male', '2004-08-22', 21, 'Single', 'PAROLA', '0123 BARANGAY MARIKINA, NANGKA', 'Nangka', '09167498805', 3, 'Congenital / Inborn - HEART CONDITION', 'Active', 'JUAN DELA CRUZ', '09876543122', '2026-01-10 01:45:18', '2026-01-10 01:45:18', 1, 1),
+(2, 'SEBASTIAN', 'BOLANTE', 'ONNAGAN', NULL, 'Male', '2004-05-01', 21, 'Single', 'SAMPALOC', '0123 BARANGAY MARIKINA, NANGKA', 'Nangka', '09123456789', 1, 'Acquired - CATARATA', 'Active', 'JUAN DELA CRUZ', '09876543122', '2026-01-10 01:46:48', '2026-01-10 01:46:48', 1, 1),
+(3, 'IVELL', 'JAY', 'IBARRA', NULL, 'Male', '2004-10-31', 21, 'Single', 'NANGKA', '0123 BARANGAY MARIKINA, NANGKA', 'Nangka', '09123456789', 6, 'Acquired - BULOL SA LETTER R', 'Active', 'JUAN DELA CRUZ', '09876543122', '2026-01-10 01:50:12', '2026-01-10 01:50:12', 1, 2),
+(4, 'RAPH ', 'KENNETH ', 'ZAMBRONA', NULL, 'Male', '2004-12-18', 21, 'Single', 'TONDO', '0123 BARANGAY MARIKINA, NANGKA', 'Nangka', '09123456789', 2, 'Congenital / Inborn - CHICKEN FOX', 'Active', 'JUAN DELA CRUZ', '09876543122', '2026-01-10 01:51:18', '2026-01-10 01:51:18', 1, 3),
+(5, 'JOSHUA', 'JAN', 'TRAQUEÑA', NULL, 'Male', '2004-01-01', 22, 'Single', 'QC', '0123 BARANGAY MARIKINA, NANGKA', 'Nangka', '09123456789', 1, 'Congenital / Inborn - catarata', 'Active', 'JUAN DELA CRUZ', '09876543122', '2026-01-10 01:53:50', '2026-01-10 01:53:50', 1, 4),
+(6, 'JEREMY ', 'MUME', 'ALBUERA', NULL, 'Male', '2004-08-21', 21, 'Single', 'ANTIPOLO', '0123 BARANGAY MARIKINA, NANGKA', 'Nangka', '09123456789', 6, 'Congenital / Inborn - NORMAL', 'Active', 'JUAN DELA CRUZ', '09876543122', '2026-01-10 01:56:09', '2026-01-10 01:56:09', 1, 5);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `notifications`
+--
+
+CREATE TABLE `notifications` (
+  `notification_id` int(11) NOT NULL,
+  `recipient_id` int(11) NOT NULL,
+  `message` text NOT NULL,
+  `type` enum('info','warning','success','error') DEFAULT 'info',
+  `is_read` tinyint(1) DEFAULT 0,
+  `sender_id` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 9. Activity Logs
--- ============================================
-CREATE TABLE IF NOT EXISTS activity_logs (
-  log_id INT PRIMARY KEY AUTO_INCREMENT,
-  person_id INT NOT NULL,
-  action VARCHAR(100) NOT NULL,
-  entity_type VARCHAR(100),
-  entity_id INT,
-  old_value TEXT,
-  new_value TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (person_id) REFERENCES Person_In_Charge(person_id) ON DELETE CASCADE,
-  INDEX idx_date (created_at)
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `person_in_charge`
+--
+
+CREATE TABLE `person_in_charge` (
+  `person_id` int(11) NOT NULL,
+  `fullname` varchar(255) NOT NULL,
+  `username` varchar(100) NOT NULL,
+  `password_hash` varchar(255) NOT NULL,
+  `role_id` int(11) NOT NULL,
+  `position` varchar(100) DEFAULT NULL,
+  `contact_no` varchar(20) DEFAULT NULL,
+  `email` varchar(100) DEFAULT NULL,
+  `avatar_url` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `last_login` timestamp NULL DEFAULT NULL,
+  `is_active` tinyint(1) DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 10. Documents/Attachments
--- ============================================
-CREATE TABLE IF NOT EXISTS documents (
-  document_id INT PRIMARY KEY AUTO_INCREMENT,
-  pwd_id INT NOT NULL,
-  document_type VARCHAR(100) NOT NULL,
-  file_name VARCHAR(255) NOT NULL,
-  file_path VARCHAR(500) NOT NULL,
-  file_size INT,
-  mime_type VARCHAR(50),
-  uploaded_by INT,
-  upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (pwd_id) REFERENCES Nangka_PWD_user(pwd_id) ON DELETE CASCADE,
-  FOREIGN KEY (uploaded_by) REFERENCES Person_In_Charge(person_id) ON DELETE SET NULL,
-  INDEX idx_pwd (pwd_id)
+--
+-- Dumping data for table `person_in_charge`
+--
+
+INSERT INTO `person_in_charge` (`person_id`, `fullname`, `username`, `password_hash`, `role_id`, `position`, `contact_no`, `email`, `avatar_url`, `created_at`, `updated_at`, `last_login`, `is_active`) VALUES
+(1, 'admin_test', 'jeremume', '$2b$10$hpwuYNQX2hF9pnlh4Z3nDuCeCTZIqTRcM89Ym5wjtjnVUFaXE22/K', 2, 'tester', '12345679101', 'tester@gmail.com', NULL, '2026-01-10 00:28:41', '2026-01-10 00:28:41', NULL, 1);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pwd_disabilities`
+--
+
+CREATE TABLE `pwd_disabilities` (
+  `pwd_disability_id` int(11) NOT NULL,
+  `pwd_id` int(11) NOT NULL,
+  `disability_id` int(11) NOT NULL,
+  `severity` enum('mild','moderate','severe') DEFAULT 'moderate',
+  `date_identified` date DEFAULT NULL,
+  `notes` text DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pwd_mis`
+--
+
+CREATE TABLE `pwd_mis` (
+  `pwd_mis_id` int(11) NOT NULL,
+  `pwd_id` int(11) NOT NULL,
+  `person_id` int(11) NOT NULL,
+  `registration_status` enum('registered','pending','rejected','archived') DEFAULT 'pending',
+  `date_processed` timestamp NOT NULL DEFAULT current_timestamp(),
+  `notes` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================
--- 11. Announcements & Updates
--- ============================================
-CREATE TABLE IF NOT EXISTS announcements (
-  announcement_id INT PRIMARY KEY AUTO_INCREMENT,
-  title VARCHAR(255) NOT NULL,
-  content TEXT NOT NULL,
-  notice_type ENUM('General', 'Update', 'Emergency') DEFAULT 'General',
-  posted_by INT,
-  event_date DATE,
-  start_time TIME,
-  end_time TIME,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  is_active BOOLEAN DEFAULT TRUE,
-  FOREIGN KEY (posted_by) REFERENCES Person_In_Charge(person_id) ON DELETE SET NULL,
-  INDEX idx_type (notice_type),
-  INDEX idx_created (created_at),
-  INDEX idx_event_date (event_date)
+--
+-- Dumping data for table `pwd_mis`
+--
+
+INSERT INTO `pwd_mis` (`pwd_mis_id`, `pwd_id`, `person_id`, `registration_status`, `date_processed`, `notes`) VALUES
+(1, 1, 1, 'registered', '2026-01-10 01:45:18', NULL),
+(2, 2, 1, 'registered', '2026-01-10 01:46:48', NULL),
+(3, 3, 1, 'registered', '2026-01-10 01:50:12', NULL),
+(4, 4, 1, 'registered', '2026-01-10 01:51:18', NULL),
+(5, 5, 1, 'registered', '2026-01-10 01:53:50', NULL),
+(6, 6, 1, 'registered', '2026-01-10 01:56:09', NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `pwd_user_login`
+--
+
+CREATE TABLE `pwd_user_login` (
+  `login_id` int(11) NOT NULL,
+  `pwd_id` varchar(50) NOT NULL,
+  `numeric_pwd_id` int(11) DEFAULT NULL,
+  `password_hash` varchar(255) NOT NULL,
+  `last_login` timestamp NULL DEFAULT NULL,
+  `is_active` tinyint(1) DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `pwd_user_login`
+--
+
+INSERT INTO `pwd_user_login` (`login_id`, `pwd_id`, `numeric_pwd_id`, `password_hash`, `last_login`, `is_active`, `created_at`, `updated_at`) VALUES
+(1, 'PWD-MRK-CL01-2026-0002', 1, '$2b$10$sl3lvG6cBtt40OryBMwJN.mbjS46NjMxj3xBmOF8IBv7tiwvKV9vW', '2026-01-10 01:45:38', 1, '2026-01-10 01:45:18', '2026-01-10 01:45:38'),
+(2, 'PWD-MRK-CL01-2026-0003', 2, '$2b$10$kjQrMUSRnOaR0AXMYgVJ8OT8NBTpkEMrAn1YNGqRBEXh.3QGDFhWu', NULL, 1, '2026-01-10 01:46:48', '2026-01-10 01:46:48'),
+(3, 'PWD-MRK-CL02-2026-0002', 3, '$2b$10$EcXr/yXRC/rO53V5DJXAIe54OfylxqgLdGcuNnsxQdlFzK7/gAUIS', NULL, 1, '2026-01-10 01:50:12', '2026-01-10 01:50:12'),
+(4, 'PWD-MRK-CL03-2026-0002', 4, '$2b$10$k7iE2TONOkcCqZu2G2Ro9Om14StYTZtxMl827yUafn1sJ0fcRaI1i', NULL, 1, '2026-01-10 01:51:19', '2026-01-10 01:51:19'),
+(5, 'PWD-MRK-CL04-2026-0002', 5, '$2b$10$iKkEXEmUyejNMp9XgDwkAeEOY64E9zHzEfoujlYcb9sWU85mfnTsi', NULL, 1, '2026-01-10 01:53:50', '2026-01-10 01:53:50'),
+(6, 'PWD-MRK-CL05-2026-0002', 6, '$2b$10$vhXf0KqGUV8Pbf7ovV8rqO8JBKI2UrGlKb53Zk/ElXQ8mc0RtnOOG', NULL, 1, '2026-01-10 01:56:09', '2026-01-10 01:56:09');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `roles`
+--
+
+CREATE TABLE `roles` (
+  `role_id` int(11) NOT NULL,
+  `role_name` varchar(50) NOT NULL,
+  `description` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ============================================================================
--- SAMPLE DATA & TEST ACCOUNTS
--- ============================================================================
+--
+-- Dumping data for table `roles`
+--
 
--- Disable foreign key checks temporarily for truncating tables
-SET FOREIGN_KEY_CHECKS=0;
+INSERT INTO `roles` (`role_id`, `role_name`, `description`, `created_at`) VALUES
+(1, 'super_admin', 'System administrator - manages admin accounts and system settings', '2026-01-09 23:42:45'),
+(2, 'admin', 'Person-in-Charge - manages PWD records and staff operations', '2026-01-09 23:42:45'),
+(3, 'pwd_user', 'PWD User - limited access to view own registration information', '2026-01-09 23:42:45');
 
--- ============================================
--- Delete all data in correct order (all child tables first)
--- ============================================
-DELETE FROM pwd_user_login;
-DELETE FROM pwd_disabilities;
-DELETE FROM beneficiary_claims;
-DELETE FROM activity_logs;
-DELETE FROM notifications;
-DELETE FROM documents;
-DELETE FROM PWD_MIS;
-DELETE FROM Person_In_Charge;
-DELETE FROM Nangka_PWD_user;
-DELETE FROM disability_types;
-DELETE FROM roles;
+--
+-- Indexes for dumped tables
+--
 
--- ============================================
--- Insert Roles (Three-Tier System)
--- ============================================
-INSERT INTO roles (role_id, role_name, description) VALUES
-(1, 'super_admin', 'System administrator - manages admin accounts and system settings'),
-(2, 'admin', 'Person-in-Charge - manages PWD records and staff operations'),
-(4, 'pwd_user', 'PWD User - limited access to view own registration information');
+--
+-- Indexes for table `activity_logs`
+--
+ALTER TABLE `activity_logs`
+  ADD PRIMARY KEY (`log_id`),
+  ADD KEY `person_id` (`person_id`),
+  ADD KEY `idx_date` (`created_at`);
 
--- ============================================
--- SAMPLE DATA INSERTION
--- ============================================
--- ⚠️  PASSWORD HASHING IS NOW HANDLED BY THE SYSTEM
--- 
--- Instead of hardcoding hashed passwords in this SQL file,
--- the system now uses Node.js with bcryptjs to securely hash
--- passwords dynamically. This prevents password leakage through
--- version control and SQL backups.
 --
--- To insert test data:
---   1. Ensure database tables are created (this script handles it)
---   2. Run: node seed-db.js
+-- Indexes for table `announcements`
 --
--- The seed-db.js script will:
---   • Hash passwords using bcrypt (10 salt rounds)
---   • Insert test accounts securely
---   • Display login credentials for testing
---   • Prevent duplicate data
---
--- Test Credentials (created by seed-db.js):
---   Super Admin:  username=super_admin, password=password123
---   Admin:        username=admin_user, password=password123
---   PWD User:     id=1 (auto), password=surname
---
--- SECURITY NOTES:
---   ✓ Never hardcode passwords in SQL files
---   ✓ Always use bcrypt to hash passwords
---   ✓ SQL files should only contain table schemas
---   ✓ Use separate seed scripts for test data
--- ============================================
+ALTER TABLE `announcements`
+  ADD PRIMARY KEY (`announcement_id`),
+  ADD KEY `posted_by` (`posted_by`),
+  ADD KEY `idx_type` (`notice_type`),
+  ADD KEY `idx_created` (`created_at`),
+  ADD KEY `idx_event_date` (`event_date`);
 
--- No test data is inserted here. Run: node seed-db.js
+--
+-- Indexes for table `beneficiary_claims`
+--
+ALTER TABLE `beneficiary_claims`
+  ADD PRIMARY KEY (`claim_id`),
+  ADD KEY `processed_by` (`processed_by`),
+  ADD KEY `idx_status` (`status`),
+  ADD KEY `idx_pwd` (`pwd_id`);
 
--- ============================================
--- Sample Disability Types
--- ============================================
-INSERT INTO disability_types (disability_name, description) VALUES
-('Visual Impairment', 'Blindness or low vision'),
-('Hearing Impairment', 'Deafness or hard of hearing'),
-('Physical Disability', 'Mobility or physical limitations'),
-('Intellectual Disability', 'Cognitive or developmental disability'),
-('Psychosocial Disability', 'Mental health conditions'),
-('Speech Disability', 'Speech or language impairment'),
-('Multiple Disabilities', 'More than one type of disability');
+--
+-- Indexes for table `disability_types`
+--
+ALTER TABLE `disability_types`
+  ADD PRIMARY KEY (`disability_id`),
+  ADD UNIQUE KEY `disability_name` (`disability_name`);
 
--- Re-enable foreign key checks
-SET FOREIGN_KEY_CHECKS=1;
+--
+-- Indexes for table `documents`
+--
+ALTER TABLE `documents`
+  ADD PRIMARY KEY (`document_id`),
+  ADD KEY `uploaded_by` (`uploaded_by`),
+  ADD KEY `idx_pwd` (`pwd_id`);
 
--- ============================================================================
--- AUTHENTICATION WORKFLOW
--- ============================================================================
--- 
--- 1. SUPER ADMIN LOGIN (role_id = 1)
---    Endpoint: POST /auth/unified-login
---    Request: { idNumber: "super_admin", password: "password123" }
---    Response: { token, user { id, username, role, role_id: 1 } }
---    Redirect: /super-admin
 --
--- 2. ADMIN LOGIN (role_id = 2)
---    Endpoint: POST /auth/unified-login
---    Request: { idNumber: "admin_user", password: "password123" }
---    Response: { token, user { id, username, role, role_id: 2 } }
---    Redirect: /admin
+-- Indexes for table `nangka_pwd_user`
 --
--- 3. PWD USER LOGIN (role_id = 4)
---    Endpoint: POST /auth/unified-login
---    Request: { idNumber: "1", password: "Lopez" }
---    Response: { token, user { id, pwd_id, username, role, role_id: 4 } }
---    Redirect: /dashboard (read-only access to own record)
+ALTER TABLE `nangka_pwd_user`
+  ADD PRIMARY KEY (`pwd_id`),
+  ADD KEY `idx_name` (`firstname`,`lastname`),
+  ADD KEY `idx_contact` (`contact_no`),
+  ADD KEY `idx_active` (`is_active`),
+  ADD KEY `fk_nangka_disability_type` (`disability_type`),
+  ADD KEY `idx_registration_date` (`registration_date`),
+  ADD KEY `idx_cluster_group` (`cluster_group_no`),
+  ADD KEY `idx_cluster_year` (`cluster_group_no`,`registration_date`);
+
 --
--- ============================================================================
--- BACKEND LOGIN LOGIC (auth.controller.js)
--- ============================================================================
--- 
--- The /auth/unified-login endpoint:
--- 1. Checks Person_In_Charge table first (super_admin, admin)
--- 2. If not found, checks pwd_user_login table (pwd users)
--- 3. Returns appropriate role_id based on user type
--- 4. Frontend redirects based on role_id:
---    - role_id 1 → /super-admin
---    - role_id 2 → /admin
---    - role_id 4 → /dashboard (read-only)
+-- Indexes for table `notifications`
 --
--- ============================================================================
--- PASSWORD HASHING NOTE
--- ============================================================================
--- 
--- The password_hash values in this sample data are bcryptjs hashes of:
--- Password: password123
--- Hash: $2b$10$n7Wy0s9BG7i/yOPmKaB7Hei7QzR3cSAhkFzR8kQHx8hf8eVCVQ.zy
+ALTER TABLE `notifications`
+  ADD PRIMARY KEY (`notification_id`),
+  ADD KEY `recipient_id` (`recipient_id`),
+  ADD KEY `sender_id` (`sender_id`),
+  ADD KEY `idx_read` (`is_read`,`recipient_id`);
+
 --
--- To generate hashes in Node.js:
---   const bcrypt = require('bcryptjs');
---   const hash = await bcrypt.hash('your_password', 10);
+-- Indexes for table `person_in_charge`
 --
--- To verify in login:
---   const isValid = await bcrypt.compare(password, password_hash);
+ALTER TABLE `person_in_charge`
+  ADD PRIMARY KEY (`person_id`),
+  ADD UNIQUE KEY `username` (`username`),
+  ADD KEY `idx_username` (`username`),
+  ADD KEY `idx_role` (`role_id`),
+  ADD KEY `idx_active` (`is_active`);
+
 --
--- ============================================================================
+-- Indexes for table `pwd_disabilities`
+--
+ALTER TABLE `pwd_disabilities`
+  ADD PRIMARY KEY (`pwd_disability_id`),
+  ADD UNIQUE KEY `unique_pwd_disability` (`pwd_id`,`disability_id`),
+  ADD KEY `fk_pwd_disability_type` (`disability_id`);
+
+--
+-- Indexes for table `pwd_mis`
+--
+ALTER TABLE `pwd_mis`
+  ADD PRIMARY KEY (`pwd_mis_id`),
+  ADD UNIQUE KEY `unique_pwd_registration` (`pwd_id`,`person_id`),
+  ADD KEY `person_id` (`person_id`),
+  ADD KEY `idx_status` (`registration_status`);
+
+--
+-- Indexes for table `pwd_user_login`
+--
+ALTER TABLE `pwd_user_login`
+  ADD PRIMARY KEY (`login_id`),
+  ADD UNIQUE KEY `uk_pwd_login` (`pwd_id`),
+  ADD UNIQUE KEY `uk_pwd_id_formatted` (`pwd_id`),
+  ADD KEY `idx_numeric_pwd_id` (`numeric_pwd_id`);
+
+--
+-- Indexes for table `roles`
+--
+ALTER TABLE `roles`
+  ADD PRIMARY KEY (`role_id`),
+  ADD UNIQUE KEY `role_name` (`role_name`);
+
+--
+-- AUTO_INCREMENT for dumped tables
+--
+
+--
+-- AUTO_INCREMENT for table `activity_logs`
+--
+ALTER TABLE `activity_logs`
+  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `announcements`
+--
+ALTER TABLE `announcements`
+  MODIFY `announcement_id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `beneficiary_claims`
+--
+ALTER TABLE `beneficiary_claims`
+  MODIFY `claim_id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `disability_types`
+--
+ALTER TABLE `disability_types`
+  MODIFY `disability_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+
+--
+-- AUTO_INCREMENT for table `documents`
+--
+ALTER TABLE `documents`
+  MODIFY `document_id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `nangka_pwd_user`
+--
+ALTER TABLE `nangka_pwd_user`
+  MODIFY `pwd_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+
+--
+-- AUTO_INCREMENT for table `notifications`
+--
+ALTER TABLE `notifications`
+  MODIFY `notification_id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `person_in_charge`
+--
+ALTER TABLE `person_in_charge`
+  MODIFY `person_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT for table `pwd_disabilities`
+--
+ALTER TABLE `pwd_disabilities`
+  MODIFY `pwd_disability_id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `pwd_mis`
+--
+ALTER TABLE `pwd_mis`
+  MODIFY `pwd_mis_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+
+--
+-- AUTO_INCREMENT for table `pwd_user_login`
+--
+ALTER TABLE `pwd_user_login`
+  MODIFY `login_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+
+--
+-- AUTO_INCREMENT for table `roles`
+--
+ALTER TABLE `roles`
+  MODIFY `role_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
+-- Constraints for dumped tables
+--
+
+--
+-- Constraints for table `activity_logs`
+--
+ALTER TABLE `activity_logs`
+  ADD CONSTRAINT `activity_logs_ibfk_1` FOREIGN KEY (`person_id`) REFERENCES `person_in_charge` (`person_id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `announcements`
+--
+ALTER TABLE `announcements`
+  ADD CONSTRAINT `announcements_ibfk_1` FOREIGN KEY (`posted_by`) REFERENCES `person_in_charge` (`person_id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `beneficiary_claims`
+--
+ALTER TABLE `beneficiary_claims`
+  ADD CONSTRAINT `beneficiary_claims_ibfk_1` FOREIGN KEY (`pwd_id`) REFERENCES `nangka_pwd_user` (`pwd_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `beneficiary_claims_ibfk_2` FOREIGN KEY (`processed_by`) REFERENCES `person_in_charge` (`person_id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `documents`
+--
+ALTER TABLE `documents`
+  ADD CONSTRAINT `documents_ibfk_1` FOREIGN KEY (`pwd_id`) REFERENCES `nangka_pwd_user` (`pwd_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `documents_ibfk_2` FOREIGN KEY (`uploaded_by`) REFERENCES `person_in_charge` (`person_id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `nangka_pwd_user`
+--
+ALTER TABLE `nangka_pwd_user`
+  ADD CONSTRAINT `fk_nangka_disability_type` FOREIGN KEY (`disability_type`) REFERENCES `disability_types` (`disability_id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+--
+-- Constraints for table `notifications`
+--
+ALTER TABLE `notifications`
+  ADD CONSTRAINT `notifications_ibfk_1` FOREIGN KEY (`recipient_id`) REFERENCES `person_in_charge` (`person_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `notifications_ibfk_2` FOREIGN KEY (`sender_id`) REFERENCES `person_in_charge` (`person_id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `person_in_charge`
+--
+ALTER TABLE `person_in_charge`
+  ADD CONSTRAINT `person_in_charge_ibfk_1` FOREIGN KEY (`role_id`) REFERENCES `roles` (`role_id`);
+
+--
+-- Constraints for table `pwd_disabilities`
+--
+ALTER TABLE `pwd_disabilities`
+  ADD CONSTRAINT `fk_pwd_disability_pwd` FOREIGN KEY (`pwd_id`) REFERENCES `nangka_pwd_user` (`pwd_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_pwd_disability_type` FOREIGN KEY (`disability_id`) REFERENCES `disability_types` (`disability_id`) ON UPDATE CASCADE;
+
+--
+-- Constraints for table `pwd_mis`
+--
+ALTER TABLE `pwd_mis`
+  ADD CONSTRAINT `pwd_mis_ibfk_1` FOREIGN KEY (`pwd_id`) REFERENCES `nangka_pwd_user` (`pwd_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `pwd_mis_ibfk_2` FOREIGN KEY (`person_id`) REFERENCES `person_in_charge` (`person_id`);
+
+--
+-- Constraints for table `pwd_user_login`
+--
+ALTER TABLE `pwd_user_login`
+  ADD CONSTRAINT `fk_login_pwd_numeric` FOREIGN KEY (`numeric_pwd_id`) REFERENCES `nangka_pwd_user` (`pwd_id`) ON DELETE CASCADE;
+COMMIT;
+
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
