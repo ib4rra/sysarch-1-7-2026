@@ -42,12 +42,14 @@ export const getOverview = async (req, res) => {
 
     const clusterGroups = clusterRows.map(r => ({ cluster: r.cluster, count: r.count }));
 
-    // Disability classifications (count by disability_name)
+    // Disability classifications (count by disability_type)
     const [disabilityRows] = await db.query(
       `SELECT dt.disability_name, COUNT(*) as count
-       FROM pwd_disabilities pd
-       JOIN disability_types dt ON pd.disability_id = dt.disability_id
-       GROUP BY dt.disability_name`);
+       FROM nangka_pwd_user npu
+       JOIN disability_types dt ON npu.disability_type = dt.disability_id
+       WHERE npu.is_active = 1
+       GROUP BY dt.disability_name
+       ORDER BY count DESC`);
 
     const disabilities = disabilityRows.map(r => ({ label: r.disability_name, count: r.count }));
 

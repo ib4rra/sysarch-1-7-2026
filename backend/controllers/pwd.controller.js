@@ -4,9 +4,12 @@
  */
 
 import * as PwdModel from '../models/pwd.models.js';
+
 import bcrypt from 'bcryptjs';
 import { generatePwdId } from '../utils/pwdIdGenerator.js';
 import db from '../config/db.js';
+
+
 
 
 /**
@@ -71,6 +74,84 @@ export const getAllRegistrants = async (req, res) => {
     res.status(500).json({
       success: false,
       message: err.message || 'Failed to fetch registrants',
+    });
+  }
+};
+
+export const verifyRegistrant = async (req, res) => {
+  const searchId = req.params.id;
+
+  try {
+    const query = `
+        SELECT 
+            pl.pwd_id AS formatted_id,
+            u.pwd_id AS numeric_id,
+            u.firstname,
+            u.middlename,
+            u.lastname,
+            u.sex,
+            u.birthdate,
+            u.age,
+            u.contact_no,
+            u.hoa,
+            u.registration_date,
+            u.guardian_name,
+            u.guardian_contact,
+            u.address,
+            u.cluster_group_no,
+            dt.disability_name,
+            u.disability_cause,
+            u.registration_status
+        FROM pwd_user_login pl
+        JOIN Nangka_PWD_user u ON pl.numeric_pwd_id = u.pwd_id
+        LEFT JOIN disability_types dt ON u.disability_type = dt.disability_id
+        WHERE pl.pwd_id = ? 
+    `;
+
+    // Use the imported db connection
+    const [rows] = await db.execute(query, [searchId]);
+
+    if (rows.length === 0) {
+      return res.json({ 
+        success: false, 
+        message: "ID not found in Nangka MIS database." 
+      });
+    }
+
+    const user = rows[0];
+    
+    return res.json({
+      success: true,
+      data: {
+        id: user.formatted_id,
+        formattedPwdId: user.formatted_id,
+        pwd_id: user.numeric_id,
+        firstName: user.firstname,
+        middleName: user.middlename,
+        lastName: user.lastname,
+        sex: user.sex,
+        birthdate: user.birthdate,
+        age: user.age,
+        contactNumber: user.contact_no,
+        contactNo: user.contact_no,
+        hoa: user.hoa,
+        dateRegistered: user.registration_date,
+        registration_date: user.registration_date,
+        guardian: user.guardian_name,
+        guardianContact: user.guardian_contact,
+        address: user.address,
+        clusterGroupNo: user.cluster_group_no,
+        disabilityType: user.disability_name || 'Unspecified',
+        disabilityCause: user.disability_cause || null,
+        status: user.registration_status || null
+      }
+    });
+
+  } catch (error) {
+    console.error("Database Error:", error);
+    return res.status(500).json({ 
+      success: false, 
+      message: "Server error checking ID" 
     });
   }
 };
@@ -229,6 +310,16 @@ export const createRegistrant = async (req, res) => {
       });
     }
 
+    // Log activity
+    try {
+      await db.query(
+        `INSERT INTO activity_logs (person_id, action, entity_type, entity_id) VALUES (?, ?, ?, ?)`,
+        [finalUserId, 'add', 'PWD', pwd.pwd_id]
+      );
+    } catch (logErr) {
+      console.warn('Failed to log activity:', logErr.message);
+    }
+
     res.status(201).json({
       success: true,
       message: 'PWD registrant and login credentials created successfully',
@@ -263,6 +354,17 @@ export const updateRegistrant = async (req, res) => {
     // Fetch and return the updated record
     const updatedPwd = await PwdModel.getPwdWithDisabilities(pwdId);
 
+    // Log activity with details of changed fields
+    try {
+      const changedFields = Object.keys(updateData).join(', ');
+      await db.query(
+        `INSERT INTO activity_logs (person_id, action, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?)`,
+        [req.userId || null, 'edit', 'PWD', pwdId, `Changed fields: ${changedFields}`]
+      );
+    } catch (logErr) {
+      console.warn('Failed to log activity:', logErr.message);
+    }
+
     res.json({
       success: true,
       message: 'PWD registrant updated successfully',
@@ -284,6 +386,8 @@ export const deleteRegistrant = async (req, res) => {
   try {
     const { pwdId } = req.params;
 
+    // Fetch record before delete for logging
+    const record = await PwdModel.getPwdWithDisabilities(pwdId);
     const affectedRows = await PwdModel.delete_(pwdId);
 
     if (affectedRows === 0) {
@@ -291,6 +395,16 @@ export const deleteRegistrant = async (req, res) => {
         success: false,
         message: 'PWD registrant not found',
       });
+    }
+
+    // Log activity with deleted record details
+    try {
+      await db.query(
+        `INSERT INTO activity_logs (person_id, action, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?)`,
+        [req.userId || null, 'delete', 'PWD', pwdId, `Deleted record: ${record ? JSON.stringify({ name: record.firstname + ' ' + record.lastname, id: record.formattedPwdId || record.pwd_id }) : 'N/A'}`]
+      );
+    } catch (logErr) {
+      console.warn('Failed to log activity:', logErr.message);
     }
 
     res.json({

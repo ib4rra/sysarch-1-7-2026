@@ -177,20 +177,20 @@ const CreateIDView = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Front ID Mockup */}
                 <div className="bg-white p-4 rounded-xl border-2 border-gray-200 shadow-xl relative aspect-[1.6/1] overflow-hidden">
-                   <div className="bg-[#800000] text-white p-2 flex justify-between items-center rounded-t">
-                      <div className="w-8 h-8 bg-white rounded-full p-1"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Seal_of_Marikina.svg/1200px-Seal_of_Marikina.svg.png" /></div>
-                      <div className="text-[8px] text-center font-bold">
+                   <div className="bg-[#800000] text-white p-1 flex justify-between items-center rounded-t">
+                      <div className="w-7 h-7 bg-white rounded-full p-0.5"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Seal_of_Marikina.svg/1200px-Seal_of_Marikina.svg.png" /></div>
+                      <div className="text-[7px] text-center font-bold">
                         REPUBLIC OF THE PHILIPPINES<br/>CITY OF MARIKINA<br/>BARANGAY NANGKA
                       </div>
-                      <div className="w-8 h-8 bg-white rounded-full p-1"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Seal_of_Marikina.svg/1200px-Seal_of_Marikina.svg.png" /></div>
+                      <div className="w-7 h-7 bg-white rounded-full p-0.5"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Seal_of_Marikina.svg/1200px-Seal_of_Marikina.svg.png" /></div>
                    </div>
-                   <div className="p-4 flex gap-4">
+                   <div className="p-2 flex gap-2">
                       <div className="w-24 h-24 bg-gray-100 border border-gray-800">
                         {photo && <img src={photo} className="w-full h-full object-cover" />}
                       </div>
                       <div className="space-y-1">
-                        <h4 className="font-bold text-[10px] text-gray-800">BARANGAY NANGKA PWD MEMBER</h4>
-                        <div className="text-[8px] text-gray-600 space-y-0.5">
+                        <h4 className="font-bold text-[8px] text-gray-800 -mt-1">BARANGAY NANGKA PWD MEMBER</h4>
+                        <div className="text-[7.5px] text-gray-600 space-y-0.5 mt-0.5">
                           <p><strong>FULL NAME:</strong> JOSHUA TRAQUENA</p>
                           <p><strong>ADDRESS:</strong> 45 LILAC ST.</p>
                           <p><strong>P.W.D ID NUMBER:</strong> PWD-01-2021</p>
@@ -201,13 +201,13 @@ const CreateIDView = () => {
                 </div>
 
                 {/* Back ID Mockup */}
-                <div className="bg-[#fadcdc] p-4 rounded-xl border-2 border-gray-200 shadow-xl relative aspect-[1.6/1] overflow-hidden">
-                   <div className="bg-[#800000] text-white p-2 flex justify-between items-center rounded-t">
-                      <div className="w-8 h-8 bg-white rounded-full p-1"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Seal_of_Marikina.svg/1200px-Seal_of_Marikina.svg.png" /></div>
-                      <div className="text-[8px] text-center font-bold">CITY OF MARIKINA</div>
-                      <div className="w-8 h-8 bg-white rounded-full p-1"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Seal_of_Marikina.svg/1200px-Seal_of_Marikina.svg.png" /></div>
+                <div className="bg-[#fadcdc] p-3 rounded-xl border-2 border-gray-200 shadow-xl relative aspect-[1.6/1] overflow-hidden">
+                   <div className="bg-[#800000] text-white p-1 flex justify-between items-center rounded-t">
+                      <div className="w-7 h-7 bg-white rounded-full p-0.5"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Seal_of_Marikina.svg/1200px-Seal_of_Marikina.svg.png" /></div>
+                      <div className="text-[7px] text-center font-bold">CITY OF MARIKINA</div>
+                      <div className="w-7 h-7 bg-white rounded-full p-0.5"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Seal_of_Marikina.svg/1200px-Seal_of_Marikina.svg.png" /></div>
                    </div>
-                   <div className="p-4 flex flex-col items-center justify-center h-full gap-2">
+                   <div className="p-3 flex flex-col items-center justify-center h-full gap-2">
                       <h4 className="font-bold text-[10px] text-gray-800">IN CASE OF EMERGENCY, PLS. NOTIFY:</h4>
                       <div className="text-[8px] text-center text-gray-600 space-y-1">
                         <p><strong>NAME:</strong> IVELL JAY</p>

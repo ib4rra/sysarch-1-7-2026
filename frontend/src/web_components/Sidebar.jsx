@@ -29,14 +29,14 @@ const Sidebar = ({ activeTab, setActiveTab, onLogout }) => {
             {item.label}
           </button>
         ))}
-      </nav>
 
-      <button
+        <button
         onClick={onLogout}
         className="flex items-center gap-4 px-6 py-4 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors mt-auto w-full"
-      >
-        Logout
-      </button>
+        >
+          Logout
+        </button>
+      </nav>
     </div>
   );
 };
