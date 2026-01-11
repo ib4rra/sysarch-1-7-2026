@@ -16,9 +16,9 @@ router.get('/types', verifyToken, DisabilityController.getDisabilityTypes);
 /**
  * Staff routes
  */
-router.get('/pwd/:pwdId', verifyToken, authorizeRoles([2, 3, 4]), DisabilityController.getPwdDisabilities);
-router.post('/pwd/:pwdId', verifyToken, authorizeRoles([2, 3, 4]), DisabilityController.addDisabilityRecord);
-router.put('/record/:recordId', verifyToken, authorizeRoles([2, 3, 4]), DisabilityController.updateDisabilityRecord);
-router.delete('/record/:recordId', verifyToken, authorizeRoles([2]), DisabilityController.deleteDisabilityRecord); // Admin only
+router.get('/pwd/:pwdId', verifyToken, authorizeRoles([1, 2, 3, 4]), DisabilityController.getPwdDisabilities);
+router.post('/pwd/:pwdId', verifyToken, authorizeRoles([1, 2, 3, 4]), DisabilityController.addDisabilityRecord);
+router.put('/record/:recordId', verifyToken, authorizeRoles([1, 2, 3, 4]), DisabilityController.updateDisabilityRecord);
+router.delete('/record/:recordId', verifyToken, authorizeRoles([1,2]), DisabilityController.deleteDisabilityRecord); // Admin + SuperAdmin
 
 export default router;

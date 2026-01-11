@@ -168,10 +168,11 @@ export const pwdLogin = async (req, res) => {
       });
     }
 
-    // Generate limited JWT token for PWD user
+    // Generate limited JWT token for PWD user (include numeric internal id for server lookups)
     const token = jwt.sign(
       {
-        pwd_id: pwdLogin.pwd_id,
+        id: pwdLogin.pwd_internal_id || null, // numeric internal id
+        pwd_id: pwdLogin.pwd_id, // formatted id
         type: 'pwd_user',
         firstname: pwdLogin.firstname,
         lastname: pwdLogin.lastname,
@@ -191,6 +192,7 @@ export const pwdLogin = async (req, res) => {
       data: {
         token,
         user: {
+          id: pwdLogin.pwd_internal_id || null,
           pwd_id: pwdLogin.pwd_id,
           fullname: `${pwdLogin.firstname} ${pwdLogin.lastname}`,
           type: 'pwd_user',
@@ -550,6 +552,7 @@ export const unifiedLogin = async (req, res) => {
       // Generate JWT token for PWD user (role_id = 3 for PWD users)
       const token = jwt.sign(
         {
+          id: pwdUser.numeric_pwd_id || pwdUser.pwd_id || null,
           pwd_id: pwdUser.pwd_id,
           type: 'pwd_user',
           firstname: firstName,
@@ -565,7 +568,7 @@ export const unifiedLogin = async (req, res) => {
         message: 'PWD user login successful',
         token,
         user: {
-          id: pwdUser.pwd_id,
+          id: pwdUser.numeric_pwd_id || null,
           fullname: `${firstName} ${lastName}`,
           username: pwdUser.pwd_id,
           role: 'PWD User',

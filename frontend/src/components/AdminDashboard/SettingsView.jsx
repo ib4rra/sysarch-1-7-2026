@@ -68,9 +68,21 @@ const SettingsView = () => {
   // HANDLERS
   // ==========================================
 
-  const handleBackup = () => {
-    // Triggers direct download from backend
-    settingsAPI.downloadBackup();
+  const handleBackup = async () => {
+    setLoading(true);
+    setMsg(null);
+    try {
+      const result = await settingsAPI.downloadBackup();
+      if (result.success) {
+        setMsg({ type: 'success', text: 'Database backup downloaded successfully!' });
+      } else {
+        setMsg({ type: 'error', text: result.message || 'Failed to download backup' });
+      }
+    } catch (err) {
+      setMsg({ type: 'error', text: err.message || 'Backup download failed' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSaveInterface = async () => {
@@ -285,8 +297,16 @@ const SettingsView = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {auditLogs.length === 0 ? (
-                    <tr><td colSpan="4" className="px-6 py-8 text-center text-gray-500 text-sm">No logs found.</td></tr>
+                  {(!Array.isArray(auditLogs) || auditLogs.length === 0) ? (
+                    <tr>
+                      <td colSpan="4" className="px-6 py-8 text-center text-gray-500 text-sm">
+                        No logs found.<br/>
+                        {/* Debug info for developers */}
+                        {typeof auditLogs === 'object' && auditLogs !== null && (
+                          <pre className="text-xs text-red-400 mt-2 bg-gray-50 p-2 rounded border border-gray-100 overflow-x-auto">{JSON.stringify(auditLogs, null, 2)}</pre>
+                        )}
+                      </td>
+                    </tr>
                   ) : (
                     auditLogs.map((log, index) => (
                       <tr key={index} className="hover:bg-gray-50 transition-colors">
@@ -294,27 +314,45 @@ const SettingsView = () => {
                         <td className="px-6 py-4 text-sm font-mono text-gray-500 whitespace-nowrap">
                           {log.timestamp}
                         </td>
-                        
                         {/* 2. User (Full Name) */}
                         <td className="px-6 py-4 text-sm font-bold text-gray-800">
                           {log.user || 'Unknown User'}
                         </td>
-                        
                         {/* 3. Action Type */}
                         <td className="px-6 py-4">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                             log.action?.toUpperCase().includes('DELETE') ? 'bg-red-100 text-red-700' :
-                             log.action?.toUpperCase().includes('CREATE') ? 'bg-green-100 text-green-700' :
-                             log.action?.toUpperCase().includes('UPDATE') ? 'bg-blue-100 text-blue-700' :
-                             'bg-gray-100 text-gray-700'
-                          }`}>
-                            {log.action}
-                          </span>
+                          {(() => {
+                            const action = log.action?.toUpperCase() || '';
+                            let color = 'bg-gray-100 text-gray-700';
+                            let label = action;
+                            if (action.includes('DELETE')) {
+                              color = 'bg-red-100 text-red-700';
+                              label = 'DELETE';
+                            } else if (action.includes('CREATE')) {
+                              color = 'bg-green-100 text-green-700';
+                              label = 'CREATE';
+                            } else if (action.includes('EDIT') || action.includes('UPDATE')) {
+                              color = 'bg-blue-100 text-blue-700';
+                              label = 'EDIT';
+                            } else if (action.includes('SETTINGS')) {
+                              color = 'bg-yellow-100 text-yellow-700';
+                              label = 'SETTINGS';
+                            } else if (action.includes('LOGIN')) {
+                              color = 'bg-purple-100 text-purple-700';
+                              label = 'LOGIN';
+                            } else if (action.includes('EXPORT')) {
+                              color = 'bg-cyan-100 text-cyan-700';
+                              label = 'EXPORT';
+                            }
+                            return (
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${color}`}>
+                                {label}
+                              </span>
+                            );
+                          })()}
                         </td>
-                        
                         {/* 4. Target/Details */}
                         <td className="px-6 py-4 text-sm text-gray-600">
-                          {log.target}
+                          {log.details || log.target || log.info || ''}
                         </td>
                       </tr>
                     ))
@@ -372,6 +410,27 @@ const SettingsView = () => {
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto p-8">
         <div className="max-w-5xl mx-auto">
+          {/* Message Display */}
+          {msg && (
+            <div className={`mb-6 p-4 rounded-lg border flex items-center gap-3 ${
+              msg.type === 'success' 
+                ? 'bg-green-50 border-green-200 text-green-700' 
+                : 'bg-red-50 border-red-200 text-red-700'
+            }`}>
+              {msg.type === 'success' ? (
+                <CheckCircle size={20} />
+              ) : (
+                <AlertCircle size={20} />
+              )}
+              <span>{msg.text}</span>
+              <button
+                onClick={() => setMsg(null)}
+                className="ml-auto text-lg hover:opacity-70"
+              >
+                ×
+              </button>
+            </div>
+          )}
           {renderContent()}
         </div>
       </div>

@@ -25,7 +25,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 await initializeDatabase();
 
 // Routes
-app.use('/', routes);
+app.use('/api', routes);
 
 // Error handling middleware
 app.use(errorHandler);
@@ -34,6 +34,7 @@ app.use(errorHandler);
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
+
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);

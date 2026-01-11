@@ -120,6 +120,8 @@ const VerifyIDView = () => {
     stopScanner();
   };
 
+  // Debug state for QR box
+  const [qrBox, setQrBox] = useState(null);
   const scanFrame = () => {
     if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
       const video = videoRef.current;
@@ -135,7 +137,7 @@ const VerifyIDView = () => {
 
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
       const jsqr = jsqrRef.current;
-      
+
       if (!jsqr) {
         if (isScanning) requestRef.current = requestAnimationFrame(scanFrame);
         return;
@@ -143,8 +145,11 @@ const VerifyIDView = () => {
 
       const code = jsqr(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
       if (code) {
+        setQrBox(code.location);
         processQRResult(code.data);
         return;
+      } else {
+        setQrBox(null);
       }
     }
     if (isScanning) {
@@ -279,6 +284,22 @@ const VerifyIDView = () => {
                 {isScanning ? (
                   <>
                     <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                    {/* Debug overlay for QR box */}
+                    {qrBox && (
+                      <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{zIndex: 10}}>
+                        <polygon
+                          points={[
+                            `${(qrBox.topLeftCorner.x / videoRef.current.videoWidth) * 100}% ${(qrBox.topLeftCorner.y / videoRef.current.videoHeight) * 100}%`,
+                            `${(qrBox.topRightCorner.x / videoRef.current.videoWidth) * 100}% ${(qrBox.topRightCorner.y / videoRef.current.videoHeight) * 100}%`,
+                            `${(qrBox.bottomRightCorner.x / videoRef.current.videoWidth) * 100}% ${(qrBox.bottomRightCorner.y / videoRef.current.videoHeight) * 100}%`,
+                            `${(qrBox.bottomLeftCorner.x / videoRef.current.videoWidth) * 100}% ${(qrBox.bottomLeftCorner.y / videoRef.current.videoHeight) * 100}%`
+                          ].join(' ')}
+                          fill="none"
+                          stroke="#00FF00"
+                          strokeWidth="4"
+                        />
+                      </svg>
+                    )}
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                       <div className="w-4/5 h-4/5 border-2 border-white/50 rounded-lg relative overflow-hidden">
                         <div className="w-full h-0.5 bg-red-500 absolute top-0 shadow-[0_0_15px_red] animate-[scan_2s_linear_infinite]"></div>

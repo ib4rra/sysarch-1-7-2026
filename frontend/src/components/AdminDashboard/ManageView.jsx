@@ -81,7 +81,7 @@ const ManageView = () => {
   const [localRecords, setLocalRecords] = useState([]); // Local state for records
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 8;
+  const itemsPerPage = 10;
   
   const [showFormModal, setShowFormModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
@@ -103,6 +103,11 @@ const ManageView = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deletingRecord, setDeletingRecord] = useState(null);
   const [deletingLoading, setDeletingLoading] = useState(false);
+
+  // Create confirmation state
+  const [createConfirmOpen, setCreateConfirmOpen] = useState(false);
+  const [pendingCreatePayload, setPendingCreatePayload] = useState(null);
+  const [creatingLoading, setCreatingLoading] = useState(false);
 
   const [filterCriteria, setFilterCriteria] = useState({
     status: '',
@@ -248,6 +253,34 @@ const ManageView = () => {
     }
   }, [selectedRecord]);
 
+  // Auto-generate QR asset on the server when opening preview if missing
+  useEffect(() => {
+    let mounted = true;
+    const autoGen = async () => {
+      if (!selectedRecord) return;
+      if (selectedRecord.qr_image_path) return; // already has stored image
+      const id = selectedRecord.formattedPwdId || selectedRecord.pwd_id || selectedRecord.id;
+      if (!id) return;
+      setIsLoading(true);
+      try {
+        await pwdAdminAPI.generateRegistrantQr(id);
+        // refresh details
+        const resp = await pwdAdminAPI.getRegistrantDetails(id);
+        const payload = resp?.data || resp;
+        if (mounted && payload) {
+          setSelectedRecord(prev => prev ? ({ ...prev, ...payload }) : payload);
+          setLocalRecords(prev => prev.map(r => ((r.pwd_id || r.id || '') === (payload.pwd_id || payload.id || id) || (r.formattedPwdId || '') === (payload.formattedPwdId || id)) ? { ...r, ...payload } : r));
+        }
+      } catch (err) {
+        console.warn('Auto QR generation failed:', err?.message || err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    autoGen();
+    return () => { mounted = false; };
+  }, [selectedRecord]);
+
   const filteredRows = useMemo(() => {
     return (localRecords || []).filter(row => {
       // Handle both database field names (firstname, lastname) and frontend format (firstName, lastName)
@@ -330,7 +363,7 @@ const ManageView = () => {
       setLocalRecords(prev => prev.filter(r => (r.pwd_id || r.id) !== pwdId));
       setDeleteConfirmOpen(false);
       setDeletingRecord(null);
-      alert('Record deleted successfully!');
+      // Deleted successfully; UI updated without an alert.
     } catch (err) {
       console.error('Error deleting record:', err);
       alert('Error: ' + (err.response?.data?.message || err.message || 'Failed to delete record'));
@@ -344,8 +377,32 @@ const ManageView = () => {
     setDeletingRecord(null);
   };
 
+  // Confirm and perform create after user confirmation
+  const confirmCreate = async () => {
+    if (!pendingCreatePayload) return;
+    setCreatingLoading(true);
+    try {
+      await pwdAdminAPI.createRegistrant(pendingCreatePayload);
+      await refreshRecords();
+      setCreateConfirmOpen(false);
+      setPendingCreatePayload(null);
+      setShowFormModal(false);
+    } catch (err) {
+      console.error('Error creating record:', err);
+      alert('Error: ' + (err.response?.data?.message || err.message || 'Failed to create record'));
+    } finally {
+      setCreatingLoading(false);
+      setIsLoading(false);
+    }
+  };
+
   const handleSaveRecord = async (e) => {
     e.preventDefault();
+    const formEl = e.currentTarget;
+    // Use browser validation (reportValidity) to enforce required fields
+    if (typeof formEl.reportValidity === 'function' && !formEl.reportValidity()) {
+      return;
+    }
     setIsLoading(true);
     setError(null);
 
@@ -408,16 +465,14 @@ const ManageView = () => {
         }
         return;
       } else {
-        // Create new record
-        const response = await pwdAdminAPI.createRegistrant(recordData);
-        
-        // Refetch all records to ensure we have the latest data from the server
-        // This ensures proper pagination, sorting, and any server-side processing
-        await refreshRecords();
+        // Queue create payload and show confirmation modal instead of immediate create
+        setPendingCreatePayload(recordData);
+        setCreateConfirmOpen(true);
+        setIsLoading(false);
+        return;
       }
 
       setShowFormModal(false);
-      alert(editingRecord ? 'Record updated successfully!' : 'Record created successfully!');
     } catch (err) {
       console.error('Error saving record:', err);
       setError(err.message || 'Failed to save record');
@@ -488,6 +543,35 @@ const ManageView = () => {
     fileInputRef.current?.click();
   };
 
+  // Generate QR on server and refresh selected record data
+  const handleGenerateQr = async () => {
+    if (!selectedRecord) return;
+    setIsLoading(true);
+    try {
+      const id = selectedRecord.formattedPwdId || selectedRecord.pwd_id || selectedRecord.id;
+      if (!id) return;
+      await pwdAdminAPI.generateRegistrantQr(id);
+      // Refresh detailed record from server
+      try {
+        const resp = await pwdAdminAPI.getRegistrantDetails(id);
+        const payload = resp?.data || resp;
+        if (payload) {
+          // Update selected record and localRecords
+          setSelectedRecord(prev => ({ ...prev, ...payload }));
+          setLocalRecords(prev => prev.map(r => ((r.pwd_id || r.id || '') === (payload.pwd_id || payload.id || id) || (r.formattedPwdId || '') === (payload.formattedPwdId || id)) ? { ...r, ...payload } : r));
+        }
+      } catch (err) {
+        // ignore details fetch error; QR was generated
+        console.warn('Failed to refresh registrant details:', err.message || err);
+      }
+    } catch (err) {
+      console.error('Error generating QR:', err);
+      alert('Failed to generate QR image');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
       {deleteConfirmOpen && (
@@ -503,6 +587,17 @@ const ManageView = () => {
           onConfirm={confirmDelete}
           onCancel={cancelDelete}
           isLoading={deletingLoading}
+        />
+      )}
+      {createConfirmOpen && (
+        <ConfirmationModal
+          isOpen={createConfirmOpen}
+          title={"Confirm Add User?"}
+          message={'Are you sure you want to add this user and info?'}
+          type="info"
+          onConfirm={confirmCreate}
+          onCancel={() => { setCreateConfirmOpen(false); setPendingCreatePayload(null); }}
+          isLoading={creatingLoading}
         />
       )}
       <style>{`
@@ -584,8 +679,6 @@ const ManageView = () => {
           <h2 className="text-2xl font-bold text-gray-800">Citizen Records</h2>
           <p className="text-sm text-gray-500">Manage, verify, and print official PWD identification cards.</p>
           <p className="text-sm text-red-500">1. Yung suffix dapat kahit wala yung user nakikita padin yung table, dapat naka N/A lang</p>
-          <p className="text-sm text-red-500">2. Yung filters paki ayos nadin, pag cluster pinipili walang lumalabas dahil yung name ata "Group" instead "Cluster"</p>
-          <p className="text-sm text-red-500">3. Yung preview modal gawing responsive and dynamic; yung mga imported data din</p>
         </div>
         <div className="flex gap-2">
           <button 
@@ -923,6 +1016,7 @@ const ManageView = () => {
                         type="text" 
                         className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" 
                         placeholder="e.g., Accident, Disease, Birth Defect"
+                        required={causeType !== ''}
                         value={causeSpecific}
                         onChange={(e) => setCauseSpecific(e.target.value)}
                       />
@@ -1117,17 +1211,17 @@ const ManageView = () => {
                         <FieldRow label="GUARDIAN CONTACT:" value={selectedRecord.guardianContact || selectedRecord.guardian_contact || selectedRecord.emergencyNumber || selectedRecord.guardian_contact_no || ''} />
                       </div>
 
-                      <div className="back-qr" title="PWD QR Code">
-                        <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(selectedRecord.formattedPwdId || selectedRecord.pwd_id || selectedRecord.id || '')}`}
-                          alt="PWD QR"
-                        />
-                      </div>
-
                       <div className="administration-section">
                          <p className="admin-label">UNDER THE ADMINISTRATION OF</p>
                          <div className="admin-signature-line"></div>
                          <p className="admin-name">HON. CELSO R. DELAS ARMAS JR.</p>
+                         <div className="back-qr" title="PWD QR Code">
+                           <img
+                             src={`http://localhost:5000/pwd/${encodeURIComponent(selectedRecord.formattedPwdId || selectedRecord.pwd_id || selectedRecord.id || '')}/qr`}
+                             alt="PWD QR"
+                             onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(selectedRecord.formattedPwdId || selectedRecord.pwd_id || selectedRecord.id || '')}`; }}
+                           />
+                         </div>
                       </div> 
                     </div>
                   </div>
@@ -1154,6 +1248,7 @@ const ManageView = () => {
                           </button>
                        </div>
                        <button onClick={handlePrint} className="w-full px-4 py-4 bg-[#800000] text-white rounded-xl font-bold uppercase flex items-center justify-center gap-2"><Printer size={18} /> Print ID</button>
+                       <button onClick={handleGenerateQr} disabled={!selectedRecord || isLoading} className="w-full px-4 py-4 bg-blue-700 text-white rounded-xl font-bold uppercase flex items-center justify-center gap-2">Generate QR</button>
                        <button onClick={handleSaveAndExit} className="w-full px-4 py-4 bg-green-700 text-white rounded-xl font-bold uppercase flex items-center justify-center gap-2"><Save size={18} /> Save & Exit</button>
                     </div>
                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
@@ -1195,8 +1290,9 @@ const ManageView = () => {
                       <div className="mt-4">
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">QR Code</p>
                         <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(viewRecord.formattedPwdId || viewRecord.pwd_id || viewRecord.id || '')}`}
+                          src={`http://localhost:5000/pwd/${encodeURIComponent(viewRecord.formattedPwdId || viewRecord.pwd_id || viewRecord.id || '')}/qr`}
                           alt="PWD ID QR"
+                          onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(viewRecord.formattedPwdId || viewRecord.pwd_id || viewRecord.id || '')}`; }}
                           className="w-32 h-32 object-contain border border-gray-200 rounded-md bg-white"
                         />
                       </div>
@@ -1277,15 +1373,15 @@ const ManageView = () => {
         .emergency-fields-group { display: flex; flex-direction: column; gap: 8px; }
         .field-row { display: flex; align-items: center; gap: 8px; }
         .field-row label { font-size: 11px; font-weight: 700; color: #000; min-width: 90px; }
-        .field-row span { font-size: 12px; font-weight: 400; color: #000 !important; border-bottom: 1.5px solid #000; flex: 1; min-height: 18px; line-height: 1.1; text-transform: uppercase; word-break: break-word; white-space: pre-line; }
+        .field-row span { font-size: 12px; font-weight: 400; color: #000 !important; border-bottom: none; flex: 1; min-height: 18px; line-height: 1.1; text-transform: uppercase; word-break: break-word; white-space: pre-line; }
         
-        .administration-section { margin-top: 8px; display: flex; flex-direction: column; align-items: center; padding-bottom: 6px; }
+        .administration-section { margin-top: 8px; display: flex; flex-direction: column; align-items: center; padding-bottom: 6px; position: relative; width: 100%; }
         .admin-label { font-size: 9px; font-weight: 900; color: #000; margin-bottom: 6px; }
         .admin-signature-line { width: 240px; height: 2px; background: #000; margin-bottom: 4px; }
         .admin-name { font-size: 14px; font-weight: 900; color: #000; margin-top: 4px; }
 
         /* QR code on back side */
-        .back-qr { position: absolute; bottom: 92px; right: 28px; width: 92px; height: 92px; background: white; padding: 6px; border: 2px solid #000; box-sizing: border-box; display:flex; align-items:center; justify-content:center; z-index:6; }
+        .back-qr { position: absolute; right: -20px; top: 15%; transform: translateY(-50%); width: 92px; height: 92px; background: white; padding: 6px; border: 2px solid #000; box-sizing: border-box; display:flex; align-items:center; justify-content:center; z-index:6; }
         .back-qr img { width: 100%; height: 100%; object-fit: contain; display:block; }
 
         @media print {
