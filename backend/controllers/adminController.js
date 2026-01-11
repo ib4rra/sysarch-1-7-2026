@@ -15,15 +15,15 @@ export const getAdminDashboard = async (req, res) => {
   }
 };
 
+import * as SystemModel from '../models/system.models.js';
+
 export const getAllUsers = async (req, res) => {
   try {
-    // TODO: Implement get all users logic
-    res.json({
-      message: 'Get all users',
-      users: [],
-    });
+    const users = await SystemModel.getAllStaff();
+    res.json({ success: true, data: users });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error('Failed to fetch users:', err);
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 

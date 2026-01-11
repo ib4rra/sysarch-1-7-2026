@@ -1,7 +1,7 @@
 import axios from "axios"; 
 
 const API = axios.create({
-  baseURL: "http://localhost:5000",
+  baseURL: "http://localhost:5000/api",
   headers: {
     "Content-Type": "application/json",
   },
@@ -106,7 +106,7 @@ export const pwdUserAPI = {
    * Get own PWD record
    */
   getOwnRecord: async () => {
-    const response = await API.get("/pwd-users/me");
+    const response = await API.get("/pwd-user/me");
     return response.data;
   },
 
@@ -114,7 +114,7 @@ export const pwdUserAPI = {
    * Get own disabilities
    */
   getOwnDisabilities: async () => {
-    const response = await API.get("/pwd-users/me/disabilities");
+    const response = await API.get("/pwd-user/disabilities");
     return response.data;
   },
 
@@ -122,7 +122,7 @@ export const pwdUserAPI = {
    * Get own claims/benefits status
    */
   getOwnClaimsStatus: async () => {
-    const response = await API.get("/pwd-users/me/claims");
+    const response = await API.get("/pwd-user/claims");
     return response.data;
   },
 
@@ -131,9 +131,18 @@ export const pwdUserAPI = {
    */
   verifyRegistration: async (verificationData) => {
     const response = await API.post(
-      "/pwd-users/verify-registration",
+      "/pwd-user/verify",
       verificationData
     );
+    return response.data;
+  },
+
+  /**
+   * Change own account password
+   * @param {object} payload - { currentPassword, newPassword, confirmPassword }
+   */
+  changePassword: async (payload) => {
+    const response = await API.post('/user/change-password', payload);
     return response.data;
   },
 };
@@ -149,6 +158,16 @@ export const pwdAdminAPI = {
   getRegistrantById: async (pwdId) => {
     // Use the new verification endpoint for ID verification
     const response = await API.get(`/pwd/verify/${pwdId}`);
+    return response.data;
+  },
+  // Fetch detailed registrant record by numeric or formatted id
+  getRegistrantDetails: async (pwdId) => {
+    const response = await API.get(`/pwd/${pwdId}`);
+    return response.data;
+  },
+  // Generate and store QR image for a PWD on the server (uploads/qr) and update DB
+  generateRegistrantQr: async (pwdId) => {
+    const response = await API.post(`/pwd/${pwdId}/qr/generate`);
     return response.data;
   },
   createRegistrant: async (payload) => {
@@ -204,16 +223,57 @@ export const settingsAPI = {
     return response.data;
   },
   getLogs: async (page = 1) => {
+    // Use the correct endpoint and handle data
     const response = await API.get(`/admin/logs?page=${page}&limit=10`);
+    // Some APIs wrap data in { success, data }, some return array directly
+    if (Array.isArray(response.data)) return { success: true, data: response.data };
     return response.data;
   },
   getStaff: async () => {
     const response = await API.get('/admin/users');
     return response.data;
   },
-  downloadBackup: () => {
-    // Direct window open for file download
-    window.open('http://localhost:5000/api/admin/backup', '_blank');
+  downloadBackup: async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/admin/backup', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Backup error response:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      // Get the filename from the Content-Disposition header
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = 'nangka_mis_backup.sql';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+        if (filenameMatch) filename = filenameMatch[1];
+      }
+      
+      // Get the blob data
+      const blob = await response.blob();
+      
+      // Create a download link and trigger download
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      return { success: true, message: 'Backup downloaded successfully' };
+    } catch (error) {
+      console.error('Backup download error:', error);
+      return { success: false, message: error.message || 'Failed to download backup' };
+    }
   }
 };
 

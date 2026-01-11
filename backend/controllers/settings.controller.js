@@ -70,18 +70,135 @@ export const getStaffUsers = async (req, res) => {
   }
 };
 
-// --- BACKUP (Remains the same as it doesn't use DB queries) ---
-export const downloadBackup = async (req, res) => {
-  const filename = `backup-${Date.now()}.sql`;
-  const cmd = `mysqldump -u root nangka_mis`; 
+// --- BACKUP: attempt Node mysqldump, then CLI, then manual SQL dump ---
+import db from '../config/db.js';
+import fs from 'fs';
+import path from 'path';
 
-  exec(cmd, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`exec error: ${error}`);
-      return res.status(500).send('Backup creation failed');
+export const downloadBackup = async (req, res) => {
+  const filename = `nangka_mis_backup_${new Date().toISOString().slice(0, 10)}.sql`;
+  const backupsDir = path.join(process.cwd(), 'backend', 'uploads', 'backups');
+
+  // 1) Try Node mysqldump module (if installed)
+  try {
+    let mysqldump;
+    try {
+      const mod = await import('mysqldump');
+      mysqldump = mod?.default || mod;
+    } catch (importErr) {
+      mysqldump = null;
     }
-    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
-    res.setHeader('Content-Type', 'application/sql');
-    res.send(stdout);
-  });
+
+    if (mysqldump) {
+      await fs.promises.mkdir(backupsDir, { recursive: true });
+      const outPath = path.join(backupsDir, filename);
+
+      await mysqldump({
+        connection: {
+          host: process.env.DB_HOST || 'localhost',
+          user: process.env.DB_USER || 'root',
+          password: process.env.DB_PASSWORD || '',
+          database: process.env.DB_NAME || 'nangka_mis',
+        },
+        dumpToFile: outPath,
+      });
+
+      return res.download(outPath, filename, (err) => {
+        if (err) {
+          console.error('Error sending backup file:', err);
+          return res.status(500).json({ success: false, message: 'Failed to send backup file' });
+        }
+      });
+    }
+  } catch (nodeErr) {
+    console.warn('Node mysqldump error, continuing to CLI/manual fallback:', nodeErr.message || nodeErr);
+  }
+
+  // 2) Try system mysqldump CLI
+  try {
+    const DB_HOST = process.env.DB_HOST || 'localhost';
+    const DB_USER = process.env.DB_USER || 'root';
+    const DB_PASS = process.env.DB_PASSWORD || '';
+    const DB_NAME = process.env.DB_NAME || 'nangka_mis';
+
+    const { exec } = await import('child_process');
+    const cmd = `mysqldump -h ${DB_HOST} -u ${DB_USER} ${DB_NAME}`;
+
+    const execResult = await new Promise((resolve, reject) => {
+      exec(cmd, { env: { ...process.env, MYSQL_PWD: DB_PASS }, maxBuffer: 1024 * 1024 * 200 }, (error, stdout, stderr) => {
+        if (error) return reject(new Error(stderr || error.message));
+        resolve(stdout);
+      });
+    });
+
+    // Send stdout as file
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/sql; charset=utf-8');
+    res.setHeader('Content-Length', Buffer.byteLength(execResult, 'utf8'));
+    return res.send(execResult);
+  } catch (cliErr) {
+    console.warn('CLI mysqldump failed, falling back to manual dump:', cliErr.message || cliErr);
+  }
+
+  // 3) Manual DB dump (SQL statements via queries)
+  try {
+    await fs.promises.mkdir(backupsDir, { recursive: true });
+    const outPath = path.join(backupsDir, filename);
+    const writeStream = fs.createWriteStream(outPath, { encoding: 'utf8' });
+
+    writeStream.write(`-- Nangka MIS backup generated at ${new Date().toISOString()}\n`);
+    writeStream.write('SET FOREIGN_KEY_CHECKS=0;\n\n');
+
+    const connection = await db.getConnection();
+
+    // Get tables
+    const [tablesRows] = await connection.query('SHOW TABLES');
+    const tableNames = tablesRows.map(r => Object.values(r)[0]);
+
+    for (const table of tableNames) {
+      // Create table
+      const [createRows] = await connection.query(`SHOW CREATE TABLE \`${table}\``);
+      const createSql = createRows[0]['Create Table'] || createRows[0]['CREATE TABLE'];
+
+      writeStream.write(`DROP TABLE IF EXISTS \`${table}\`;\n`);
+      writeStream.write(`${createSql};\n\n`);
+
+      // Rows
+      const [rows] = await connection.query(`SELECT * FROM \`${table}\``);
+      if (!rows || rows.length === 0) continue;
+
+      const columns = Object.keys(rows[0]).map(c => `\`${c}\``).join(', ');
+
+      const batchSize = 200;
+      for (let i = 0; i < rows.length; i += batchSize) {
+        const batch = rows.slice(i, i + batchSize);
+        const valuesSql = batch.map(r => {
+          const vals = Object.values(r).map(v => connection.escape(v));
+          return `(${vals.join(',')})`;
+        }).join(',\n');
+        writeStream.write(`INSERT INTO \`${table}\` (${columns}) VALUES\n${valuesSql};\n\n`);
+      }
+    }
+
+    writeStream.write('SET FOREIGN_KEY_CHECKS=1;\n');
+    writeStream.end();
+
+    await new Promise((resolve, reject) => {
+      writeStream.on('finish', resolve);
+      writeStream.on('error', reject);
+    });
+
+    // Close connection if available
+    try { await connection.release(); } catch (e) {}
+
+    return res.download(outPath, filename, (err) => {
+      if (err) {
+        console.error('Error sending manual backup file:', err);
+        return res.status(500).json({ success: false, message: 'Failed to send backup file' });
+      }
+    });
+  } catch (manualErr) {
+    console.error('Manual DB dump failed:', manualErr);
+    return res.status(500).json({ success: false, message: 'Backup creation failed (all methods failed).' });
+  }
 };

@@ -36,6 +36,14 @@ export async function initializeDatabase() {
     `;
     */
 
+    // Ensure `qr_image_path` column exists on pwd_user_login
+    try {
+      await connection.query(`ALTER TABLE pwd_user_login ADD COLUMN IF NOT EXISTS qr_image_path VARCHAR(255) DEFAULT NULL`);
+      console.log('✅ Ensured qr_image_path column exists on pwd_user_login');
+    } catch (err) {
+      console.warn('⚠️ Could not add qr_image_path column (maybe it already exists):', err.message);
+    }
+
     console.log('✅ Database tables initialized');
     connection.release();
   } catch (err) {

@@ -11,9 +11,9 @@ const router = express.Router();
  * ==========================================
  */
 router.get('/dashboard', verifyToken, authorizeRoles([2]), AdminController.getAdminDashboard);
-router.get('/users', verifyToken, authorizeRoles([2]), AdminController.getAllUsers);
-router.put('/users/:userId', verifyToken, authorizeRoles([2]), AdminController.updateUser);
-router.delete('/users/:userId', verifyToken, authorizeRoles([2]), AdminController.deleteUser);
+router.get('/users', verifyToken, authorizeRoles([1,2]), AdminController.getAllUsers);
+router.put('/users/:userId', verifyToken, authorizeRoles([1,2]), AdminController.updateUser);
+router.delete('/users/:userId', verifyToken, authorizeRoles([1,2]), AdminController.deleteUser);
 
 /**
  * ==========================================
@@ -21,13 +21,13 @@ router.delete('/users/:userId', verifyToken, authorizeRoles([2]), AdminControlle
  * ==========================================
  */
 // Interface Configuration (Header/Subheader only)
-router.get('/interface', verifyToken, authorizeRoles([2]), SettingsController.getInterfaceSettings);
-router.put('/interface', verifyToken, authorizeRoles([2]), SettingsController.updateInterfaceSettings);
+router.get('/interface', verifyToken, authorizeRoles([1,2]), SettingsController.getInterfaceSettings);
+router.put('/interface', verifyToken, authorizeRoles([1,2]), SettingsController.updateInterfaceSettings);
 
 // Audit Logs
-router.get('/logs', verifyToken, authorizeRoles([2]), SettingsController.getAuditLogs);
+router.get('/logs', verifyToken, authorizeRoles([1,2]), SettingsController.getAuditLogs);
 
 // Database Backup
-router.get('/backup', verifyToken, authorizeRoles([2]), SettingsController.downloadBackup);
+router.get('/backup', verifyToken, authorizeRoles([1,2]), SettingsController.downloadBackup);
 
 export default router;

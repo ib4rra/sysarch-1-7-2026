@@ -8,18 +8,22 @@ export const getPwdOwnRecord = async (pwdId) => {
   try {
     const [result] = await db.query(
       `SELECT 
-        pwd_id,
-        firstname,
-        middlename,
-        lastname,
-        suffix,
-        sex,
-        birthdate,
-        civil_status,
-        contact_no,
-        registration_date
-      FROM Nangka_PWD_user 
-      WHERE pwd_id = ? AND is_active = TRUE`,
+        u.pwd_id,
+        u.firstname,
+        u.middlename,
+        u.lastname,
+        u.suffix,
+        u.sex,
+        u.birthdate,
+        u.civil_status,
+        u.contact_no,
+        u.registration_date,
+        l.is_active as login_active,
+        l.pwd_id as formattedPwdId,
+        l.qr_image_path
+      FROM Nangka_PWD_user u
+      LEFT JOIN pwd_user_login l ON l.numeric_pwd_id = u.pwd_id OR l.pwd_id = u.pwd_id
+      WHERE u.pwd_id = ?`,
       [pwdId]
     );
     return result.length > 0 ? result[0] : null;
@@ -77,15 +81,30 @@ export const getPwdClaimsStatus = async (pwdId) => {
 };
 
 /**
- * Check if PWD user exists and is active
+ * Check if PWD user exists
  */
 export const pwdUserExists = async (pwdId) => {
   try {
     const [result] = await db.query(
-      'SELECT pwd_id FROM Nangka_PWD_user WHERE pwd_id = ? AND is_active = TRUE',
+      'SELECT pwd_id FROM Nangka_PWD_user WHERE pwd_id = ?',
       [pwdId]
     );
     return result.length > 0;
+  } catch (err) {
+    throw err;
+  }
+};
+
+/**
+ * Update login active flag on pwd_user_login
+ */
+export const updateLoginActive = async (pwdId, isActive) => {
+  try {
+    const [result] = await db.query(
+      `UPDATE pwd_user_login SET is_active = ? WHERE numeric_pwd_id = ? OR pwd_id = ?`,
+      [isActive ? 1 : 0, pwdId, pwdId]
+    );
+    return result.affectedRows;
   } catch (err) {
     throw err;
   }

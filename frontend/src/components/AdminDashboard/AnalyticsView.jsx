@@ -349,7 +349,7 @@ const AnalyticsView = () => {
             {loading ? (
                 <div className="h-24 w-full bg-gray-100 rounded-lg animate-pulse" />
             ) : (
-                <AgeDistributionChart seniors={overview.seniors || 0} total={overview.totalRegistered || 1} />
+                <AgeDistributionChart seniors={overview.seniors || 0} total={overview.totalRegistered || 0} />
             )}
         </div>
       </div>

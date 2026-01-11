@@ -20,14 +20,24 @@ export const upsertSetting = async (key, value) => {
 // --- LOGS ---
 
 export const getLogs = async (limit, offset) => {
+  // Added 'al.details' (or whatever your specific column name is)
+  // If you don't have a details column, you can construct it using CONCAT
   const query = `
-    SELECT al.created_at as timestamp, al.action, al.entity_type as target, p.fullname as user
+    SELECT 
+      al.created_at as timestamp, 
+      al.action, 
+      al.details,  -- Make sure this column exists in your DB!
+      p.fullname as user
     FROM activity_logs al
     LEFT JOIN person_in_charge p ON al.person_id = p.person_id
     ORDER BY al.created_at DESC
     LIMIT ? OFFSET ?
   `;
-  const [rows] = await db.query(query, [limit, offset]);
+  
+  // Note: db.query arguments might need to be integers for LIMIT/OFFSET 
+  // depending on your mysql driver version. 
+  // Using explicit casting helps prevent errors.
+  const [rows] = await db.query(query, [Number(limit), Number(offset)]);
   return rows;
 };
 
