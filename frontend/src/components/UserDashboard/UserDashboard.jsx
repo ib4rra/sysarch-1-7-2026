@@ -2,12 +2,24 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../../web_components/Header";
 import UserSidebar from "../../web_components/UserSidebar";
+import UserHomeView from "./UserHomeView";
+import { pwdUserAPI, pwdAdminAPI } from "../../api";
+import UserSettingsView from "./UserSettingsView";
+
 
 function UserDashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState("home");
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState({ type: "", text: "" });
+  const [showPasswords, setShowPasswords] = useState(true);
 
   useEffect(() => {
     // Get user info from localStorage
@@ -21,12 +33,78 @@ function UserDashboard() {
       return;
     }
 
+    // Set a basic user state and fetch full PWD info when available
+    const displayName = localStorage.getItem('displayName') || username;
     setUser({
       id: userId,
       username: username,
       role: userRole,
+      fullName: displayName,
+      isActive: true,
     });
-    setLoading(false);
+
+    // Seed full name from JWT if available (some login flows include firstname/lastname)
+    try {
+      const rawToken = token || localStorage.getItem('token');
+      if (rawToken) {
+        const parts = rawToken.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1]));
+          const tFirst = (payload.firstname || payload.firstName || '').trim();
+          const tLast = (payload.lastname || payload.lastName || '').trim();
+          if (tFirst || tLast) {
+            const tFull = `${tFirst} ${tLast}`.trim().toUpperCase();
+            setUser(prev => ({ ...(prev || {}), fullName: tFull }));
+            try { localStorage.setItem('displayName', tFull); } catch (e) {}
+          }
+        }
+      }
+    } catch (e) { /* ignore */ }
+
+    // Fetch PWD user's own record to get exact full name and account status
+    (async () => {
+      try {
+        const resp = await pwdUserAPI.getOwnRecord();
+        const info = resp?.data?.personal_info || resp?.personal_info || resp?.data || null;
+        if (info) {
+          let first = (info.firstname || '').trim();
+          let last = (info.lastname || '').trim();
+          const formattedId = info.formattedPwdId || info.pwd_id || username || null;
+
+          // If names are missing, try the public verify endpoint which also returns names
+          if ((first === '' || last === '') && formattedId) {
+            try {
+              const verifyResp = await pwdAdminAPI.getRegistrantById(encodeURIComponent(formattedId));
+              const verified = verifyResp?.data || verifyResp;
+              if (verified) {
+                first = (verified.firstName || verified.firstname || '').trim();
+                last = (verified.lastName || verified.lastname || '').trim();
+              }
+            } catch (err) {
+              console.warn('PWD verify fallback failed:', err?.response?.data || err?.message || err);
+            }
+          }
+
+          const full = `${first} ${last}`.replace(/\s+/g, ' ').trim().toUpperCase();
+          setUser(prev => ({
+            ...(prev || {}),
+            fullName: full || (prev?.username || '').toUpperCase(),
+            formattedId: formattedId,
+            firstName: first || null,
+            middleName: info.middlename || null,
+            lastName: last || null,
+            isActive: info.isActive !== undefined ? !!info.isActive : (info.login_active ? !!info.login_active : true),
+          }));
+
+          try { localStorage.setItem('displayName', full || (username || '').toUpperCase()); } catch (e) { /* ignore */ }
+        }
+      } catch (err) {
+        console.warn('Could not fetch PWD record:', err?.response?.data || err?.message || err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+
   }, []);
 
   const handleLogout = () => {
@@ -34,143 +112,95 @@ function UserDashboard() {
     navigate("/", { replace: true });
   };
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case "profile":
-        return (
-          <div className="space-y-6">
-            <h2 className="text-3xl font-bold text-gray-800">My Profile</h2>
-            <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Profile Info */}
-                <div className="space-y-4">
-                  <h3 className="text-xl font-bold text-gray-800 mb-4">Personal Information</h3>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-sm text-gray-600">User ID</p>
-                      <p className="text-lg font-semibold text-gray-800">{user?.id}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Full Name</p>
-                      <p className="text-lg font-semibold text-gray-800">{user?.username}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-600">Role</p>
-                      <p className="text-lg font-semibold text-gray-800 capitalize">{user?.role}</p>
-                    </div>
-                  </div>
-                </div>
+  // Calculate password strength
+  const getPasswordStrength = (password) => {
+    if (!password) return { score: 0, label: "", color: "" };
+    // Count only non-space characters
+    const noSpaces = password.replace(/\s/g, '');
+    let score = 0;
+    if (noSpaces.length >= 8) score++;
+    if (noSpaces.length >= 12) score++;
+    if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++;
+    if (/\d/.test(password)) score++;
+    if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) score++;
 
-                {/* Additional Info */}
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
-                  <h3 className="text-xl font-bold text-blue-800 mb-4">Account Status</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <span className="w-3 h-3 bg-green-500 rounded-full"></span>
-                      <span className="text-gray-700">Account Active</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-3 h-3 bg-green-500 rounded-full"></span>
-                      <span className="text-gray-700">Login Verified</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-3 h-3 bg-green-500 rounded-full"></span>
-                      <span className="text-gray-700">Session Valid</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
+    const strengths = [
+      { score: 0, label: "", color: "" },
+      { score: 1, label: "Weak", color: "bg-red-500" },
+      { score: 2, label: "Fair", color: "bg-yellow-500" },
+      { score: 3, label: "Good", color: "bg-blue-500" },
+      { score: 4, label: "Strong", color: "bg-green-500" },
+      { score: 5, label: "Very Strong", color: "bg-green-600" },
+    ];
+    return strengths[score] || strengths[5];
+  };
 
-      case "records":
-        return (
-          <div className="space-y-6">
-            <h2 className="text-3xl font-bold text-gray-800">My Records</h2>
-            <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-gradient-to-br from-sky-50 to-blue-50 rounded-xl p-6 border border-sky-200">
-                  <h3 className="font-bold text-sky-700 mb-2">📋 Personal Records</h3>
-                  <p className="text-gray-600 text-sm">View your personal information on file</p>
-                  <button disabled className="w-full mt-4 bg-gray-300 text-gray-600 py-2 rounded-lg cursor-not-allowed text-sm">
-                    Coming Soon
-                  </button>
-                </div>
+  const handlePasswordChange = (e) => {
+    const { name, value } = e.target;
+    // Remove spaces from password fields
+    const cleanValue = (name === 'newPassword' || name === 'confirmPassword') 
+      ? value.replace(/\s/g, '') 
+      : value;
+    setPasswordData(prev => ({
+      ...prev,
+      [name]: cleanValue
+    }));
+  };
 
-                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
-                  <h3 className="font-bold text-green-700 mb-2">📄 Documents</h3>
-                  <p className="text-gray-600 text-sm">Access your official documents</p>
-                  <button disabled className="w-full mt-4 bg-gray-300 text-gray-600 py-2 rounded-lg cursor-not-allowed text-sm">
-                    Coming Soon
-                  </button>
-                </div>
+  const handleSavePassword = async (e) => {
+    e.preventDefault();
+    setPasswordLoading(true);
+    try {
+      // Call API to change password
+      const response = await pwdUserAPI.changePassword({
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+      });
 
-                <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-6 border border-purple-200">
-                  <h3 className="font-bold text-purple-700 mb-2">📊 History</h3>
-                  <p className="text-gray-600 text-sm">View your account activity history</p>
-                  <button disabled className="w-full mt-4 bg-gray-300 text-gray-600 py-2 rounded-lg cursor-not-allowed text-sm">
-                    Coming Soon
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-6 bg-blue-50 rounded-xl p-6 border border-blue-200">
-                <h3 className="font-bold text-blue-800 mb-2">ℹ️ Read-Only Access</h3>
-                <p className="text-gray-700">
-                  You have read-only access to your records. You can view your information but cannot make modifications.
-                  To request changes to your records, please contact the Barangay Nangka Office.
-                </p>
-              </div>
-            </div>
-          </div>
-        );
-
-      case "settings":
-        return (
-          <div className="space-y-6">
-            <h2 className="text-3xl font-bold text-gray-800">Settings</h2>
-            <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-200 space-y-6">
-              <div>
-                <h3 className="text-lg font-bold text-gray-800 mb-4">Account Settings</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <div>
-                      <p className="font-semibold text-gray-800">Change Password</p>
-                      <p className="text-sm text-gray-600">Update your account password</p>
-                    </div>
-                    <button disabled className="bg-gray-300 text-gray-600 px-4 py-2 rounded-lg cursor-not-allowed text-sm">
-                      Coming Soon
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <div>
-                      <p className="font-semibold text-gray-800">Email Preferences</p>
-                      <p className="text-sm text-gray-600">Manage your notification settings</p>
-                    </div>
-                    <button disabled className="bg-gray-300 text-gray-600 px-4 py-2 rounded-lg cursor-not-allowed text-sm">
-                      Coming Soon
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="border-t pt-6">
-                <h3 className="text-lg font-bold text-gray-800 mb-4">Privacy & Security</h3>
-                <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
-                  <p className="text-gray-700">
-                    Your data is protected and encrypted. We follow all data privacy regulations to keep your information safe.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-
-      default:
-        return null;
+      setPasswordMessage({ type: "success", text: "Password changed successfully!" });
+      setPasswordData({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      
+      // Clear message after 3 seconds
+      setTimeout(() => setPasswordMessage({ type: "", text: "" }), 3000);
+    } catch (error) {
+      const errorMsg = error?.response?.data?.message || error?.message || "Failed to change password";
+      setPasswordMessage({ type: "error", text: errorMsg });
+    } finally {
+      setPasswordLoading(false);
     }
   };
+
+const renderContent = () => {
+  switch (activeTab) {
+    case "home":
+      return <UserHomeView />;
+
+    case "settings":
+      const passwordStrength = getPasswordStrength(passwordData.newPassword);
+      const passwordsMatch = passwordData.newPassword && passwordData.confirmPassword && passwordData.newPassword === passwordData.confirmPassword;
+      return (
+        <UserSettingsView
+          passwordData={passwordData}
+          passwordLoading={passwordLoading}
+          passwordMessage={passwordMessage}
+          showPasswords={showPasswords}
+          setShowPasswords={setShowPasswords}
+          handlePasswordChange={handlePasswordChange}
+          handleSavePassword={handleSavePassword}
+          passwordStrength={passwordStrength}
+          passwordsMatch={passwordsMatch}
+        />
+      );
+
+    default:
+      return null;
+  }
+};
+
 
   if (loading) {
     return (
@@ -188,7 +218,7 @@ function UserDashboard() {
       {/* Header Component */}
       <Header 
         userLabel={`User`} 
-        userName={user?.username || "User"}
+        userName={user?.fullName || user?.username || "User"}
       />
 
       {/* Sidebar + Content */}

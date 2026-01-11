@@ -3,6 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { Users, Plus, Settings, Shield, Lock, LogOut } from "lucide-react";
 import Header from "../../web_components/Header";
 import SuperAdminSidebar from "../../web_components/SuperAdminSidebar";
+import HomeView from "../AdminDashboard/HomeView";
+import AnalyticsView from "../AdminDashboard/AnalyticsView";
+import SettingsView from "../AdminDashboard/SettingsView";
+import ManageView from "../AdminDashboard/ManageView";
 
 function SuperAdminDashboard() {
   const navigate = useNavigate();
@@ -48,40 +52,13 @@ function SuperAdminDashboard() {
   const renderContent = () => {
     switch (activeTab) {
       case "dashboard":
-        return (
-          <div className="space-y-6">
-            <h2 className="text-3xl font-bold text-gray-800">System Overview</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-6 border border-red-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-600 text-sm">Total Admins</p>
-                    <p className="text-3xl font-bold text-red-700 mt-2">8</p>
-                  </div>
-                  <Shield className="w-12 h-12 text-red-400 opacity-50" />
-                </div>
-              </div>
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-600 text-sm">Active Users</p>
-                    <p className="text-3xl font-bold text-blue-700 mt-2">1,248</p>
-                  </div>
-                  <Users className="w-12 h-12 text-blue-400 opacity-50" />
-                </div>
-              </div>
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-600 text-sm">System Health</p>
-                    <p className="text-3xl font-bold text-purple-700 mt-2">100%</p>
-                  </div>
-                  <Lock className="w-12 h-12 text-purple-400 opacity-50" />
-                </div>
-              </div>
-            </div>
-          </div>
-        );
+        return <AnalyticsView />;
+
+      case "home":
+        return <HomeView />;
+
+      case "manage":
+        return <ManageView />;
 
       case "admins":
         return (
@@ -99,29 +76,7 @@ function SuperAdminDashboard() {
         );
 
       case "settings":
-        return (
-          <div className="space-y-6">
-            <h2 className="text-3xl font-bold text-gray-800">System Settings</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-                <h3 className="font-bold text-lg text-gray-800 mb-4">⚙️ General Settings</h3>
-                <p className="text-gray-600">System configuration and general settings coming soon...</p>
-              </div>
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-                <h3 className="font-bold text-lg text-gray-800 mb-4">🔒 Security Settings</h3>
-                <p className="text-gray-600">Security configuration and access control coming soon...</p>
-              </div>
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-                <h3 className="font-bold text-lg text-gray-800 mb-4">📊 Database Management</h3>
-                <p className="text-gray-600">Database maintenance and backup settings coming soon...</p>
-              </div>
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-                <h3 className="font-bold text-lg text-gray-800 mb-4">📝 System Logs</h3>
-                <p className="text-gray-600">View system activity and audit logs coming soon...</p>
-              </div>
-            </div>
-          </div>
-        );
+        return <SettingsView />;
 
       default:
         return null;

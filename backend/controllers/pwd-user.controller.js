@@ -9,16 +9,7 @@ export const getOwnRecord = async (req, res) => {
   try {
     const pwdId = req.pwdId;
 
-    // Verify user exists
-    const exists = await PwdUserModel.pwdUserExists(pwdId);
-    if (!exists) {
-      return res.status(404).json({
-        success: false,
-        message: 'Record not found',
-      });
-    }
-
-    // Get limited record information
+    // Get limited record information (includes login status)
     const record = await PwdUserModel.getPwdOwnRecord(pwdId);
     if (!record) {
       return res.status(404).json({
@@ -33,10 +24,17 @@ export const getOwnRecord = async (req, res) => {
     // Get claims status
     const claims = await PwdUserModel.getPwdClaimsStatus(pwdId);
 
+    // Normalize returned personal info to include a boolean flag for account active
+    const personalInfo = {
+      ...record,
+      isActive: !!record.login_active,
+      login_active: !!record.login_active,
+    };
+
     res.json({
       success: true,
       data: {
-        personal_info: record,
+        personal_info: personalInfo,
         disabilities: disabilities || [],
         recent_claims: claims || [],
       },

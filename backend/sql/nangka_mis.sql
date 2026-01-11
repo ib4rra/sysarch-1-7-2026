@@ -271,7 +271,7 @@ CREATE TABLE `pwd_user_login` (
 
 --
 -- Dumping data for table `pwd_user_login`
---
+-- 
 
 INSERT INTO `pwd_user_login` (`login_id`, `pwd_id`, `numeric_pwd_id`, `password_hash`, `last_login`, `is_active`, `created_at`, `updated_at`) VALUES
 (1, 'PWD-MRK-CL01-2026-0002', 1, '$2b$10$sl3lvG6cBtt40OryBMwJN.mbjS46NjMxj3xBmOF8IBv7tiwvKV9vW', '2026-01-10 01:45:38', 1, '2026-01-10 01:45:18', '2026-01-10 01:45:38'),

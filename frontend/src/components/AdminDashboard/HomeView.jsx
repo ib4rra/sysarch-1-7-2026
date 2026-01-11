@@ -11,7 +11,7 @@ import {
   Edit,
   Trash2
 } from 'lucide-react';
-import { announcementsAPI } from '../../api';
+import { announcementsAPI, pwdUserAPI, pwdAdminAPI } from '../../api';
 
 const HomeView = () => {
   const [announcements, setAnnouncements] = useState([]);
@@ -42,6 +42,86 @@ const HomeView = () => {
   // Fetch announcements on component mount
   useEffect(() => {
     fetchAnnouncements();
+  }, []);
+
+  // PWD personal info (for PWD users) — fetch + poll + retry with cached fallback
+  const [pwdInfo, setPwdInfo] = useState(null);
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [pwdError, setPwdError] = useState(null);
+  const pollRef = useRef(null);
+
+  const fetchPwdInfo = async () => {
+    const roleId = Number(localStorage.getItem('userRoleId')) || 0;
+    setPwdError(null);
+    if (roleId < 3) return; // only for PWD users
+
+    setPwdLoading(true);
+    try {
+      const resp = await pwdUserAPI.getOwnRecord();
+      const info = resp?.data?.personal_info || resp?.personal_info || resp?.data || null;
+      if (info) {
+        let first = (info.firstname || info.firstName || '').trim();
+        let last = (info.lastname || info.lastName || '').trim();
+        const formattedId = info.formattedPwdId || info.pwd_id || localStorage.getItem('username') || null;
+
+        // fallback to public verify endpoint if names missing
+        if ((first === '' || last === '') && formattedId) {
+          try {
+            const verifyResp = await pwdAdminAPI.getRegistrantById(encodeURIComponent(formattedId));
+            const verified = verifyResp?.data || verifyResp;
+            if (verified) {
+              first = (verified.firstName || verified.firstname || '').trim();
+              last = (verified.lastName || verified.lastname || '').trim();
+            }
+          } catch (err) {
+            console.warn('PWD verify fallback failed:', err?.response?.data || err?.message || err);
+          }
+        }
+
+        const fullName = `${first} ${last}`.replace(/\s+/g, ' ').trim().toUpperCase();
+        const newInfo = {
+          formattedId,
+          fullName,
+          firstName: first || null,
+          lastName: last || null,
+          isActive: info.isActive !== undefined ? !!info.isActive : (info.login_active ? !!info.login_active : true)
+        };
+
+        setPwdInfo(newInfo);
+        try { localStorage.setItem('displayName', fullName); localStorage.setItem('pwdIsActive', newInfo.isActive ? '1' : '0'); } catch (e) {}
+        window.dispatchEvent(new CustomEvent('pwdInfoUpdated', { detail: newInfo }));
+      } else {
+        setPwdInfo(null);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch PWD own record:', err?.response?.data || err?.message || err);
+      const cachedActive = localStorage.getItem('pwdIsActive');
+      const cachedName = localStorage.getItem('displayName');
+      if (cachedActive !== null || cachedName) {
+        setPwdInfo({
+          formattedId: localStorage.getItem('username'),
+          fullName: cachedName || null,
+          isActive: cachedActive === '1'
+        });
+        // Keep silently showing cached info — do not set a visible banner message
+        setPwdError(null);
+      } else {
+        setPwdError(err?.response?.data?.message || err?.message || 'Could not fetch personal information');
+      }
+    } finally {
+      setPwdLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPwdInfo();
+    pollRef.current = setInterval(fetchPwdInfo, 15000);
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchPwdInfo(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(pollRef.current);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
 
   const fetchAnnouncements = async () => {
@@ -236,12 +316,14 @@ const HomeView = () => {
               Announcements & Updates
             </h2>
           </div>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-red-100 text-red-800 text-sm font-bold rounded-lg hover:bg-red-50 transition-colors"
-          >
-            <Plus size={16} /> Create Announcement
-          </button>
+          {([1,2].includes(Number(localStorage.getItem('userRoleId')))) && (
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-red-100 text-red-800 text-sm font-bold rounded-lg hover:bg-red-50 transition-colors"
+            >
+              <Plus size={16} /> Create Announcement
+            </button>
+          )}
         </div>
 
         <p className="text-sm text-gray-500 mb-8">
@@ -277,22 +359,24 @@ const HomeView = () => {
                       <h3 className="font-bold text-gray-800">
                         {item.title}
                       </h3>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleEdit(item)}
-                          className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                          title="Edit"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="p-1 text-red-600 hover:bg-red-50 rounded"
-                          title="Delete"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
+                      {([1,2].includes(Number(localStorage.getItem('userRoleId')))) && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleEdit(item)}
+                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                            title="Edit"
+                          >
+                            <Edit size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(item.id)}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                            title="Delete"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
@@ -317,6 +401,71 @@ const HomeView = () => {
           </div>
         )}
       </div>
+
+      {/* Personal Information & Account Status for PWD users */}
+      {Number(localStorage.getItem('userRoleId')) >= 3 && (
+        <div className="mt-6">
+          {pwdLoading ? (
+            <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-200 text-center">
+              <p className="text-gray-600">Loading personal information...</p>
+            </div>
+          ) : pwdInfo ? (
+            <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-200">
+
+
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-800">Personal Information</h3>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4">
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm text-gray-600">User ID</p>
+                      <p className="text-lg font-semibold text-gray-800">{pwdInfo?.formattedId || localStorage.getItem('username')}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Full Name</p>
+                      <p className="text-lg font-semibold text-gray-800">{pwdInfo?.fullName || localStorage.getItem('displayName') || (localStorage.getItem('username') || '').toUpperCase()}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Role</p>
+                      <p className="text-lg font-semibold text-gray-800 capitalize">PWD</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+                  <h3 className="text-xl font-bold text-blue-800 mb-4">Account Status</h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-3 h-3 rounded-full ${pwdInfo?.isActive ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                      <span className="text-gray-700">{pwdInfo?.isActive ? 'Account Active' : 'Account Inactive'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 bg-green-500 rounded-full"></span>
+                      <span className="text-gray-700">Login Verified</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 bg-green-500 rounded-full"></span>
+                      <span className="text-gray-700">Session Valid</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : pwdError ? (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
+              <p className="text-yellow-800 mb-2">Failed to load personal information.</p>
+              <p className="text-sm text-gray-600">If the problem persists, please contact admin.</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-200">
+              <p className="text-gray-600">No personal information available.</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ===============================
           POST NEW NOTICE MODAL

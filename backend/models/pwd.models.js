@@ -28,7 +28,7 @@ export const getAllRegistrants = async (page = 1, limit = 10) => {
     const offset = (page - 1) * limit;
     // Fetch registrants with their formatted PWD IDs using LEFT JOIN
     const [rows] = await db.query(
-      `SELECT u.pwd_id, u.firstname, u.middlename, u.lastname, u.sex, u.birthdate, u.age, u.contact_no, u.address, u.hoa, u.disability_type, u.disability_cause, u.registration_status, u.guardian_name, u.guardian_contact, u.registration_date, u.cluster_group_no, u.is_active, l.pwd_id as formattedPwdId
+      `SELECT u.pwd_id, u.firstname, u.middlename, u.lastname, u.suffix, u.sex, u.birthdate, u.age, u.contact_no, u.address, u.hoa, u.disability_type, u.disability_cause, u.registration_status, u.guardian_name, u.guardian_contact, u.registration_date, u.cluster_group_no, u.is_active, l.pwd_id as formattedPwdId, l.qr_image_path as qr_image_path
        FROM Nangka_PWD_user u
        LEFT JOIN pwd_user_login l ON l.numeric_pwd_id = u.pwd_id
        ORDER BY u.registration_date DESC
@@ -92,7 +92,7 @@ export const search = async (query) => {
   try {
     const searchTerm = `%${query}%`;
     const [rows] = await db.query(
-      `SELECT pwd_id, firstname, middlename, lastname, contact_no
+      `SELECT pwd_id, firstname, middlename, lastname, suffix, contact_no
        FROM Nangka_PWD_user 
        WHERE firstname LIKE ? OR lastname LIKE ? OR CAST(pwd_id AS CHAR) LIKE ?
        ORDER BY lastname, firstname
@@ -115,6 +115,7 @@ export const create = async (pwdData) => {
     firstName,
     middleName,
     lastName,
+    suffix,
     dateOfBirth,
     gender,
     civilStatus,
@@ -138,12 +139,13 @@ export const create = async (pwdData) => {
     const age = calculateAge(dateOfBirth);
     const [result] = await db.query(
       `INSERT INTO Nangka_PWD_user 
-       (firstname, middlename, lastname, sex, birthdate, age, civil_status, hoa, address, barangay, contact_no, disability_type, disability_cause, registration_status, guardian_name, guardian_contact, cluster_group_no)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (firstname, middlename, lastname, suffix, sex, birthdate, age, civil_status, hoa, address, barangay, contact_no, disability_type, disability_cause, registration_status, guardian_name, guardian_contact, cluster_group_no)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         firstName,
         middleName,
         lastName,
+        suffix || null,
         gender || 'Male',
         dateOfBirth || null,
         age,
@@ -165,7 +167,8 @@ export const create = async (pwdData) => {
       pwd_id: result.insertId, 
       firstname: firstName, 
       middlename: middleName, 
-      lastname: lastName, 
+      lastname: lastName,
+      suffix: suffix || null,
       birthdate: dateOfBirth, 
       age: age,
       contact_no: contactNumber, 
@@ -204,6 +207,7 @@ export const update = async (pwdId, updateData) => {
     firstName: 'firstname',
     middleName: 'middlename',
     lastName: 'lastname',
+    suffix: 'suffix',
     dateOfBirth: 'birthdate',
     gender: 'sex',
     civilStatus: 'civil_status',
@@ -280,10 +284,10 @@ export const getPwdWithDisabilities = async (pwdId) => {
 
     if (!pwdRows[0]) return null;
 
-    // Fetch formatted PWD ID from pwd_user_login
+    // Fetch formatted PWD ID, QR path and login active flag from pwd_user_login
     const [loginRows] = await db.query(
-      `SELECT pwd_id FROM pwd_user_login WHERE numeric_pwd_id = ?`,
-      [pwdId]
+      `SELECT pwd_id, qr_image_path, is_active FROM pwd_user_login WHERE numeric_pwd_id = ? OR pwd_id = ? LIMIT 1`,
+      [pwdId, pwdId]
     );
 
     const [disabilityRows] = await db.query(
@@ -297,6 +301,8 @@ export const getPwdWithDisabilities = async (pwdId) => {
     return {
       ...pwdRows[0],
       formattedPwdId: loginRows[0]?.pwd_id || null,
+      qr_image_path: loginRows[0]?.qr_image_path || null,
+      is_active: loginRows[0]?.is_active || 0,
       disabilities: disabilityRows,
     };
   } catch (err) {
@@ -311,7 +317,7 @@ export const getPwdWithDisabilities = async (pwdId) => {
 export const getPwdIdByLoginId = async (loginId) => {
   try {
     const [rows] = await db.query(
-      `SELECT n.*, l.login_id, l.password_hash, l.last_login, l.is_active, l.created_at, l.pwd_id as formattedPwdId
+      `SELECT n.*, l.login_id, l.password_hash, l.last_login, l.is_active, l.created_at, l.pwd_id as formattedPwdId, l.qr_image_path as qr_image_path
        FROM pwd_user_login l
        JOIN Nangka_PWD_user n ON l.numeric_pwd_id = n.pwd_id
        WHERE l.login_id = ?`,

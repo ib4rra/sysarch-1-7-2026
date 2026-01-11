@@ -1,10 +1,11 @@
 import React from 'react';
-import { Shield, Users, Settings, LogOut, Lock, Database } from 'lucide-react';
+import { Shield, Users, Settings, LogOut, Lock, Database, Home } from 'lucide-react';
 
 const SuperAdminSidebar = ({ activeTab, setActiveTab, onLogout }) => {
   const menuItems = [
+    { id: 'home', label: 'Home', icon: Home },
     { id: 'dashboard', label: 'System Overview', icon: Shield },
-    { id: 'admins', label: 'Manage Admins', icon: Users },
+    { id: 'manage', label: 'Manage PWD', icon: Users },
     { id: 'settings', label: 'System Settings', icon: Settings },
   ];
 

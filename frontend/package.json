@@ -21,6 +21,7 @@
     "@tailwindcss/vite": "^4.1.13",
     "axios": "^1.12.2",
     "fabric": "^5.2.4",
+    "html2canvas": "^1.4.1",
     "jsqr": "^1.4.0",
     "lucide-react": "^0.544.0",
     "pdfjs-dist": "^5.4.449",

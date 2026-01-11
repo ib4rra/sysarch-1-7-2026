@@ -1,10 +1,9 @@
 import React from 'react';
-import { User, FileText, Settings, LogOut, Home } from 'lucide-react';
+import { User, Settings, LogOut, Home } from 'lucide-react';
 
 const UserSidebar = ({ activeTab, setActiveTab, onLogout }) => {
   const menuItems = [
-    { id: 'profile', label: 'My Profile', icon: User },
-    { id: 'records', label: 'My Records', icon: FileText },
+    { id: 'home', label: 'Home', icon: Home },
     { id: 'settings', label: 'Account Settings', icon: Settings },
   ];
 
