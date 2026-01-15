@@ -35,6 +35,40 @@ export const getDisabilityTypeById = async (disabilityId) => {
 };
 
 /**
+ * Get all disability conditions with their disability types
+ */
+export const getAllDisabilityConditions = async () => {
+  try {
+    const [rows] = await db.query(
+      `SELECT dc.condition_id, dc.disability_id, dc.condition_name, dt.disability_name
+       FROM disability_conditions dc
+       JOIN disability_types dt ON dc.disability_id = dt.disability_id
+       ORDER BY dt.disability_name, dc.condition_name`
+    );
+    return rows;
+  } catch (err) {
+    throw err;
+  }
+};
+
+/**
+ * Get conditions for a specific disability type
+ */
+export const getConditionsByDisabilityId = async (disabilityId) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT condition_id, condition_name FROM disability_conditions 
+       WHERE disability_id = ? 
+       ORDER BY condition_name`,
+      [disabilityId]
+    );
+    return rows;
+  } catch (err) {
+    throw err;
+  }
+};
+
+/**
  * Add disability record for PWD
  */
 export const addDisabilityRecord = async (pwdId, disabilityData) => {

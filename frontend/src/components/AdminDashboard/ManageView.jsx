@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2, Filter, X, Eye, Printer, Camera, Save,User,HeartPulse,MoreHorizontal,CreditCard,ChevronLeft,ChevronRight,MapPin,Upload,FileText,Phone, Download, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Filter, X, Eye, Printer, Camera, Save,User,HeartPulse,MoreHorizontal,CreditCard,ChevronLeft,ChevronRight,MapPin,Upload,FileText,Phone, Download, CheckCircle, AlertTriangle, AlignCenter } from 'lucide-react';
 import { pwdAdminAPI } from '../../api';
 
 
@@ -96,6 +96,9 @@ const ManageView = () => {
   const [capturedPhoto, setCapturedPhoto] = useState(null);
   const [causeType, setCauseType] = useState('');
   const [causeSpecific, setCauseSpecific] = useState('');
+  const [selectedCondition, setSelectedCondition] = useState('');
+  const [isCustomCondition, setIsCustomCondition] = useState(false);
+  const [selectedDisabilityType, setSelectedDisabilityType] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -115,19 +118,64 @@ const ManageView = () => {
     clusterGroupNo: ''
   });
 
+  const [disabilityConditions, setDisabilityConditions] = useState({});  // Store conditions by disability ID
+
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
 
   const disabilityTypes = [
-    { id: 1, name: "Visual Impairment" },
-    { id: 2, name: "Hearing Impairment" },
-    { id: 3, name: "Physical Disability" },
-    { id: 4, name: "Intellectual Disability" },
-    { id: 5, name: "Psychosocial Disability" },
-    { id: 6, name: "Speech Disability" },
-    { id: 7, name: "Multiple Disabilities" }
+    { id: 1, name: "Visual Impairment", emoji: "👁️", description: "Blindness or low vision", examples: [] },
+    { id: 2, name: "Hearing Impairment", emoji: "👂", description: "Deafness or hard of hearing", examples: [] },
+    { id: 3, name: "Physical Disability", emoji: "🦽", description: "Mobility or physical limitations", examples: [] },
+    { id: 4, name: "Intellectual Disability", emoji: "🧠", description: "Cognitive or developmental disability", examples: [] },
+    { id: 5, name: "Psychosocial Disability", emoji: "💭", description: "Mental health conditions", examples: [] },
+    { id: 6, name: "Speech Disability", emoji: "🗣️", description: "Speech or language impairment", examples: [] },
+    { id: 7, name: "Multiple Disabilities", emoji: "⚡", description: "More than one type of disability", examples: [] }
   ];
+
+  // Cluster information with sub-areas
+  const clusterData = {
+    1: [
+      { letter: 'A', name: 'Nangka Centro' },
+      { letter: 'B', name: 'Old J.P. Rizal & J.P. Rizal' },
+      { letter: 'C', name: 'Marikit' },
+      { letter: 'D', name: 'Permaline' }
+    ],
+    2: [
+      { letter: 'A', name: 'Twin River Subdivision & Bayabas Extension' },
+      { letter: 'B', name: 'Camacho Phase 1 & 2' }
+    ],
+    3: [
+      { letter: 'A', name: 'Balubad Settlement Phase 1 & 2' },
+      { letter: 'B', name: 'PIDAMANA' }
+    ],
+    4: [
+      { letter: 'A', name: 'Area 1, 2, 3, & 4' },
+      { letter: 'B', name: 'Twinville Subdivision part of Nangka' }
+    ],
+    5: [
+      { letter: 'A', name: 'Greenland Phase 1 & 2' },
+      { letter: 'B', name: 'Ateneo Ville' },
+      { letter: 'C', name: 'Greenheights Phase 3 & 4' },
+      { letter: 'D', name: 'St. Benedict & Jaybee Subdivision' }
+    ],
+    6: [
+      { letter: 'A', name: 'Libya Extension' },
+      { letter: 'B', name: 'Bagong Silang' },
+      { letter: 'C', name: 'St. Mary' },
+      { letter: 'D', name: 'Hampstead' }
+    ],
+    7: [
+      { letter: 'A', name: 'Marikina Village' },
+      { letter: 'B', name: 'Tierra Vista' },
+      { letter: 'C', name: 'Anastacia' },
+      { letter: 'D', name: 'Mira Verde' }
+    ]
+  };
+
+  const [showClusterModal, setShowClusterModal] = useState(false);
+  const [selectedCluster, setSelectedCluster] = useState(null);
 
  // --- HELPER FUNCTIONS FOR DATA NORMALIZATION ---
 
@@ -158,6 +206,13 @@ const ManageView = () => {
     }
     // If it is already a string (Name), return it
     return val || '';
+  };
+
+  // 3b. Get Disability Examples from loaded conditions
+  const getDisabilityExamples = (disabilityId) => {
+    if (!disabilityId) return [];
+    const idNum = parseInt(disabilityId);
+    return disabilityConditions[idNum] || [];
   };
 
   // 4. FIX FOR BIRTHDATE: Convert ISO timestamp to YYYY-MM-DD
@@ -230,7 +285,31 @@ const ManageView = () => {
         setIsLoading(false);
       }
     };
+    
+    // Load disability conditions from database
+    const loadDisabilityConditions = async () => {
+      try {
+        const { disabilityAPI } = await import('../../api');
+        const conditionsResponse = await disabilityAPI.getAllDisabilityConditions();
+        const conditions = conditionsResponse.data || [];
+        
+        // Group conditions by disability_id
+        const conditionsByDisability = {};
+        conditions.forEach(cond => {
+          if (!conditionsByDisability[cond.disability_id]) {
+            conditionsByDisability[cond.disability_id] = [];
+          }
+          conditionsByDisability[cond.disability_id].push(cond.condition_name);
+        });
+        
+        setDisabilityConditions(conditionsByDisability);
+      } catch (err) {
+        console.error('Error loading disability conditions:', err);
+      }
+    };
+    
     loadRecords();
+    loadDisabilityConditions();
   }, []);
 
   // Helper function to refresh records from the server
@@ -319,6 +398,9 @@ const ManageView = () => {
     setEditingRecord(null);
     setCauseType('');
     setCauseSpecific('');
+    setSelectedCondition('');
+    setIsCustomCondition(false);
+    setSelectedDisabilityType('');
     setShowFormModal(true);
   };
 
@@ -336,15 +418,32 @@ const ManageView = () => {
       const parts = cause.split(' - ');
       if(parts.length > 1) {
           setCauseType(parts[0] || '');
-          setCauseSpecific(parts[1] || '');
+          const specificPart = parts[1] || '';
+          const disabilityType = disabilityTypes.find(d => d.name === parts[0]);
+          // Check if specific part is in the predefined examples
+          if (disabilityType && disabilityType.examples.includes(specificPart)) {
+            setSelectedCondition(specificPart);
+            setIsCustomCondition(false);
+          } else {
+            // It's a custom condition
+            setSelectedCondition(specificPart);
+            setIsCustomCondition(true);
+          }
+          setCauseSpecific(specificPart);
       } else {
           setCauseType(cause);
           setCauseSpecific('');
+          setSelectedCondition('');
+          setIsCustomCondition(false);
       }
     } else {
       setCauseType('');
       setCauseSpecific('');
+      setSelectedCondition('');
+      setIsCustomCondition(false);
     }
+    const disabilityValue = getDisabilityValueForForm(record);
+    setSelectedDisabilityType(disabilityValue);
     setShowFormModal(true);
   };
 
@@ -413,7 +512,7 @@ const ManageView = () => {
       const adminId = localStorage.getItem('userId');
 
       const cType = String(causeType || '');
-      const cSpecific = String(causeSpecific || '');
+      const cSpecific = String(selectedCondition || causeSpecific || '');
       const finalCause = cType && cSpecific ? `${cType} - ${cSpecific}` : (cType || cSpecific || '');
 
       // Map frontend fields to backend expectations
@@ -430,6 +529,7 @@ const ManageView = () => {
         hoa: String(formData.get('hoa') || ''),
         address: String(formData.get('address') || '').toUpperCase(),
         contactNumber: String(formData.get('contactNo') || ''),  // Backend expects 'contactNumber'
+        tagNo: String(formData.get('tagNo') || ''),  // Manual tag number input
         emergencyContact: String(formData.get('guardian') || '').toUpperCase(),  // Maps to 'emergencyContact'
         emergencyNumber: String(formData.get('guardianContact') || ''),  // Maps to 'emergencyNumber'
         disabilityType: getDisabilityId(String(formData.get('disabilityType') || '')),  // Convert name to ID
@@ -673,12 +773,11 @@ const ManageView = () => {
           scrollbar-color: #d1d5db transparent;
         }
       `}</style>
-      {/* Header section (Summary cards removed as requested) */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print border-t">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Citizen Records</h2>
+          <h2 className="text-3xl font-bold text-gray-800">PWD Records</h2>
           <p className="text-sm text-gray-500">Manage, verify, and print official PWD identification cards.</p>
-          <p className="text-sm text-red-500">1. Yung suffix dapat kahit wala yung user nakikita padin yung table, dapat naka N/A lang</p>
+  
         </div>
         <div className="flex gap-2">
           <button 
@@ -741,7 +840,7 @@ const ManageView = () => {
                     <option value="">All Statuses</option>
                     <option value="Active">Active</option>
                     <option value="Pending">Pending</option>
-                    <option value="Inactive">Inactive</option>
+                    <option value="Disease">Disease</option>
                   </select>
                </div>
                <div className="space-y-1">
@@ -773,25 +872,15 @@ const ManageView = () => {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="bg-gradient-to-r from-[#800000]/10 to-red-50 border-b-2 border-[#800000]/20 sticky top-0 z-10">
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Tag No</th>
                   <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">PWD ID</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">First Name</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Middle Name</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Last Name</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Suffix</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Sex</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Birthdate</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Full Name</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Disability</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Cluster Group</th>
                   <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Age</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Contact No</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Address</th>
                   <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">HOA</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Disability Type</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Disability Cause</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Guardian Name</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Guardian Contact</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Reg Date</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Cluster</th>
                   <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Status</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] text-right whitespace-nowrap">Actions</th>
+                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] text-right whitespace-nowrap">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -801,38 +890,34 @@ const ManageView = () => {
 
     return (
       <tr key={uniqueId} className={`transition-all duration-200 hover:bg-gradient-to-r hover:from-[#800000]/5 hover:to-red-50/50 group ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
-        {/* ... (Your existing columns: PWD ID, Name, etc.) ... */}
-        
+        <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-bold text-xs">{row.tagNo || row.tag_no || <span className="text-gray-400">—</span>}</td>
         <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">{row.formattedPwdId || <span className="text-gray-400">—</span>}</td>
-        <td className="px-5 py-4 text-gray-900 whitespace-nowrap">{row.firstname || row.firstName || <span className="text-gray-400">—</span>}</td>
-        <td className="px-5 py-4 text-gray-700 whitespace-nowrap">{row.middlename || row.middleName || <span className="text-gray-400">—</span>}</td>
-        <td className="px-5 py-4 text-gray-900 whitespace-nowrap">{row.lastname || row.lastName || <span className="text-gray-400">—</span>}</td>
-        <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium">{(row.suffix || row.Suffix) ? (row.suffix || row.Suffix) : <span className="text-gray-400">N/A</span>}</td>
-        <td className="px-5 py-4 text-gray-700 whitespace-nowrap">{row.sex || <span className="text-gray-400">—</span>}</td>
-        <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.birthdate ? new Date(row.birthdate).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : <span className="text-gray-400">—</span>}</td>
-        <td className="px-5 py-4 text-gray-900 whitespace-nowrap text-sm">{row.age || <span className="text-gray-400">—</span>}</td>
-        <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.contact_no || row.contactNo || <span className="text-gray-400">—</span>}</td>
-        <td className="px-5 py-4 text-gray-700 whitespace-nowrap max-w-xs truncate text-xs">{row.address || <span className="text-gray-400">—</span>}</td>
-        <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs font-medium">{row.hoa || <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-semibold">
+          {(() => {
+            const firstName = row.firstname || row.firstName || '';
+            const middleName = row.middlename || row.middleName || '';
+            const lastName = row.lastname || row.lastName || '';
+            const fullName = `${firstName} ${middleName} ${lastName}`.trim();
+            return fullName || <span className="text-gray-400">—</span>;
+          })()}
+        </td>
         <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">{getDisabilityName(row.disability_type || row.disabilityType) || <span className="text-gray-400">—</span>}</td>
-        <td className="px-5 py-4 text-gray-700 whitespace-nowrap max-w-xs truncate text-xs">{row.disability_cause || row.disabilityCause || <span className="text-gray-400">—</span>}</td>
-        
-        <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.guardian_name || row.guardianName || <span className="text-gray-400">—</span>}</td>
-        <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.guardian_contact || row.guardianContact || <span className="text-gray-400">—</span>}</td>
-        <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.registration_date ? new Date(row.registration_date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : <span className="text-gray-400">—</span>}</td>
         <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">Group {row.cluster_group_no || row.clusterGroupNo || 'N/A'}</td>
-        
+        <td className="px-5 py-4 text-gray-900 whitespace-nowrap text-sm">{row.age || <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs font-medium">{row.hoa || <span className="text-gray-400">—</span>}</td>
         <td className="px-5 py-4 whitespace-nowrap">
-  <span className={`w-16 inline-flex justify-center items-center py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-    (row.registration_status || row.status) === 'Active' 
-      ? 'bg-emerald-100 text-emerald-800 border-emerald-300 shadow-sm' 
-      : 'bg-amber-100 text-amber-800 border-amber-300 shadow-sm'
-  }`}>
-    {row.registration_status || row.status || '—'}
-  </span>
-</td>
+          <span className={`inline-flex justify-center items-center px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+            (row.registration_status || row.status) === 'Active' 
+              ? 'bg-emerald-100 text-emerald-800 border-emerald-300 shadow-sm' 
+              : (row.registration_status || row.status) === 'Disease'
+              ? 'bg-red-100 text-red-800 border-red-300 shadow-sm'
+              : 'bg-amber-100 text-amber-800 border-amber-300 shadow-sm'
+          }`}>
+            {row.registration_status || row.status || '—'}
+          </span>
+        </td>
 
-        {/* --- FIXED ACTION COLUMN (3 DOTS) --- */}
+        {/* --- ACTION COLUMN (3 DOTS) --- */}
         <td className="px-5 py-4 text-right">
           <div className="flex items-center justify-end gap-1.5">
             <button onClick={() => handleOpenEdit(row)} className="p-2 text-gray-500 hover:text-[#800000] hover:bg-red-100 rounded-lg transition-all duration-150" title="Edit">
@@ -876,7 +961,7 @@ const ManageView = () => {
     );
   }) : (
     <tr>
-      <td colSpan={20} className="px-5 py-20 text-center">
+      <td colSpan={8} className="px-5 py-20 text-center">
         <div className="flex flex-col items-center gap-2">
           <div className="text-gray-400 text-4xl mb-2">📋</div>
           <p className="text-gray-500 font-semibold">No records found</p>
@@ -955,10 +1040,27 @@ const ManageView = () => {
                     <input name="contactNo" type="tel" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.contactNo || editingRecord?.contact_no || ''} />
                   </div>
                   <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Tag No.</label>
+                    <input name="tagNo" type="text" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.tagNo || editingRecord?.tag_no || ''} placeholder="e.g., 001, 002, 051" />
+                  </div>
+                  <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Cluster Group</label>
-                    <select name="clusterGroupNo" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.clusterGroupNo || editingRecord?.cluster_group_no || '1'}>
-                      {[1,2,3,4,5,6].map(n => <option key={n} value={n}>Cluster {n}</option>)}
-                    </select>
+                    <div className="flex gap-2">
+                      <select name="clusterGroupNo" className="flex-1 px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.clusterGroupNo || editingRecord?.cluster_group_no || '1'}>
+                        {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>Cluster {n}</option>)}
+                      </select>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const clusterValue = document.querySelector('select[name="clusterGroupNo"]').value;
+                          setSelectedCluster(parseInt(clusterValue));
+                          setShowClusterModal(true);
+                        }}
+                        className="px-4 py-3 bg-[#800000] text-white rounded-xl font-bold text-sm hover:bg-[#600000] transition-colors"
+                      >
+                        View Areas
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -975,7 +1077,9 @@ const ManageView = () => {
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Disability Type *</label>
                       <select name="disabilityType" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" 
-                        defaultValue={getDisabilityValueForForm(editingRecord)} required
+                        value={selectedDisabilityType}
+                        onChange={(e) => setSelectedDisabilityType(e.target.value)}
+                        required
                       >
                         <option value="">Select Type</option>
                         {disabilityTypes.map(type => <option key={type.id} value={type.name}>{type.name}</option>)}
@@ -989,7 +1093,7 @@ const ManageView = () => {
                       >
                         <option>Active</option>
                         <option>Pending</option>
-                        <option>Inactive</option>
+                        <option>Disease</option>
                       </select>
                     </div>
                   </div>
@@ -1010,16 +1114,53 @@ const ManageView = () => {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Specific Cause Details</label>
-                      <input 
-                        name="cause_specific" 
-                        type="text" 
-                        className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" 
-                        placeholder="e.g., Accident, Disease, Birth Defect"
-                        required={causeType !== ''}
-                        value={causeSpecific}
-                        onChange={(e) => setCauseSpecific(e.target.value)}
-                      />
+                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Specific Condition *</label>
+                      {(() => {
+                        const selectedDisability = disabilityTypes.find(d => d.name === selectedDisabilityType);
+                        const disabilityId = selectedDisability?.id;
+                        const examples = getDisabilityExamples(disabilityId);
+                        
+                        return selectedDisability ? (
+                          <div className="flex gap-2">
+                            <select className="flex-1 px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" 
+                              onChange={(e) => {
+                                if (e.target.value === 'custom') {
+                                  setIsCustomCondition(true);
+                                  setSelectedCondition('');
+                                } else {
+                                  setIsCustomCondition(false);
+                                  setSelectedCondition(e.target.value);
+                                }
+                              }}
+                              value={isCustomCondition ? 'custom' : selectedCondition}
+                            >
+                              <option value="">Select or enter custom condition</option>
+                              {examples.map((example, idx) => (
+                                <option key={idx} value={example}>{example}</option>
+                              ))}
+                              <option value="custom">+ Enter Custom Condition</option>
+                            </select>
+                          </div>
+                        ) : (
+                          <input 
+                            type="text" 
+                            className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" 
+                            placeholder="Select a disability type first"
+                            disabled
+                          />
+                        );
+                      })()}
+                      
+                      {isCustomCondition && (
+                        <input 
+                          type="text" 
+                          className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" 
+                          placeholder="Type your specific condition here..."
+                          value={selectedCondition}
+                          onChange={(e) => setSelectedCondition(e.target.value)}
+                          autoFocus
+                        />
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1151,7 +1292,7 @@ const ManageView = () => {
                     <h2 className="replica-title">BARANGAY NANGKA PWD MEMBER</h2>
                     <div className="replica-top-fields">
                        <p>CLUSTER: <span className="underline-field">{selectedRecord.clusterGroupNo || selectedRecord.cluster_group_no || '______'}</span></p>
-                       <p>TAG NO: <span className="underline-field">{(selectedRecord.id || selectedRecord.pwd_id || '').toString().split('-').pop() || '______'}</span></p>
+                       <p>TAG NO: <span className="underline-field">{selectedRecord.tagNo || selectedRecord.tag_no || '______'}</span></p>
                     </div>
                     <div className="replica-main-content">
                        <div className="replica-left-col">
@@ -1191,7 +1332,7 @@ const ManageView = () => {
                        <p className="contact-info">#9 OLD J.P RIZAL ST. NANGKA, MARIKINA CITY</p>
                        <p className="contact-info">TEL NOS. 934-8625- BRGY TANOD</p>
                        <p className="contact-info">934-8626 - BRGY OFFICE</p>
-                       <p className="contact-info">0998-2706-879 - BARANGAY ACTION CENTER</p>
+                       <p className="contact-info">09286278131 - BARANGAY ACTION CENTER</p>
                     </div>
                     <div className="replica-logo-right">
                        <img  src="./src/assets/bagongpinas.png" 
@@ -1203,7 +1344,7 @@ const ManageView = () => {
                   <div className="replica-body-back">
                     <div className="back-watermark">BARANGAY NANGKA</div>
                     <div className="back-content-z">
-                      <h4 className="emergency-notify-label">ADDRESS &amp; SUPPORT</h4>
+                      <h4 className="emergency-notify-label">Emergency Contact</h4>
                       <div className="emergency-fields-group grid grid-cols-1 gap-3">
                         <FieldRow label="HOA:" value={selectedRecord.hoa || selectedRecord.hoa_name || selectedRecord.homeowners || ''} />
                         <FieldRow label="FULL ADDRESS:" value={selectedRecord.address || selectedRecord.full_address || selectedRecord.ADDRESS || ''} />
@@ -1214,7 +1355,8 @@ const ManageView = () => {
                       <div className="administration-section">
                          <p className="admin-label">UNDER THE ADMINISTRATION OF</p>
                          <div className="admin-signature-line"></div>
-                         <p className="admin-name">HON. CELSO R. DELAS ARMAS JR.</p>
+                         <p className="admin-name">CELSO R. DELAS ARMAS JR.</p>
+                         <p className="admin-label" style={{marginTop: '0px', marginBottom: '0px'}}>Punong Barangay</p>
                          <div className="back-qr" title="PWD QR Code">
                            <img
                              src={`http://localhost:5000/pwd/${encodeURIComponent(selectedRecord.formattedPwdId || selectedRecord.pwd_id || selectedRecord.id || '')}/qr`}
@@ -1326,6 +1468,39 @@ const ManageView = () => {
         </div>
       )}
 
+      {/* Cluster Modal */}
+      {showClusterModal && selectedCluster && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden">
+            <div className="px-8 py-6 bg-[#800000] text-white flex items-center justify-between">
+              <h3 className="text-xl font-black uppercase tracking-tight">Clustered Group {selectedCluster}</h3>
+              <button onClick={() => setShowClusterModal(false)} className="p-2 hover:bg-white/20 rounded-full transition"><X size={24} /></button>
+            </div>
+            <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+              {clusterData[selectedCluster] && clusterData[selectedCluster].length > 0 ? (
+                <div className="space-y-4">
+                  {clusterData[selectedCluster].map((area, idx) => (
+                    <div key={idx} className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors">
+                      <div className="w-10 h-10 bg-[#FFFFF] text-black rounded-lg flex items-center justify-center font-black text-sm flex-shrink-0">
+                        {area.letter}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-gray-800">{area.name}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-center py-8">No areas defined for this cluster</p>
+              )}
+            </div>
+            <div className="p-6 bg-gray-50 border-t flex justify-end">
+              <button onClick={() => setShowClusterModal(false)} className="px-6 py-2 bg-[#800000] text-white text-xs font-black uppercase rounded-lg hover:bg-[#600000] transition-colors">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CUSTOM REPLICA STYLES */}
       <style>{`
         .id-card-replica { width: 500px; height: 320px; background: #FBECEC; display: flex; flex-direction: column; overflow: hidden; font-family: 'Inter', sans-serif; position: relative; border-radius: 4px; }
@@ -1369,16 +1544,16 @@ const ManageView = () => {
         .replica-body-back { flex: 1; position: relative; padding: 20px 28px; display: flex; flex-direction: column; overflow: hidden; font-size: 12px; }
         .back-watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-12deg); font-size: 65px; font-weight: 900; color: rgba(0,0,0,0.04); white-space: nowrap; pointer-events: none; width: 100%; text-align: center; }
         .back-content-z { position: relative; z-index: 5; display: flex; flex-direction: column; height: 100%; }
-        .emergency-notify-label { font-size: 13px; font-weight: 700; color: #000; margin-bottom: 8px; text-transform: uppercase; }
-        .emergency-fields-group { display: flex; flex-direction: column; gap: 8px; }
-        .field-row { display: flex; align-items: center; gap: 8px; }
-        .field-row label { font-size: 11px; font-weight: 700; color: #000; min-width: 90px; }
-        .field-row span { font-size: 12px; font-weight: 400; color: #000 !important; border-bottom: none; flex: 1; min-height: 18px; line-height: 1.1; text-transform: uppercase; word-break: break-word; white-space: pre-line; }
+        .emergency-notify-label { font-size: 12px; font-weight: 700; color: #000; margin-bottom: 6px; text-transform: uppercase; }
+        .emergency-fields-group { display: flex; flex-direction: column; gap: 6px; }
+        .field-row { display: flex; align-items: flex-start; gap: 12px; }
+        .field-row label { font-size: 10px; font-weight: 700; color: #000; min-width: 110px; flex-shrink: 0; }
+        .field-row span { font-size: 11px; font-weight: 400; color: #000 !important; border-bottom: none; flex: 1; min-height: 16px; line-height: 1.2; text-transform: uppercase; word-break: break-word; white-space: normal; }
         
-        .administration-section { margin-top: 8px; display: flex; flex-direction: column; align-items: center; padding-bottom: 6px; position: relative; width: 100%; }
-        .admin-label { font-size: 9px; font-weight: 900; color: #000; margin-bottom: 6px; }
+        .administration-section { margin-top: 30px; display: flex; flex-direction: column; align-items: center; padding-bottom: 6px; position: relative; width: 100%; }
+        .admin-label { font-size: 8px; font-weight: 700; color: #000; margin-bottom: 2px; }
         .admin-signature-line { width: 240px; height: 2px; background: #000; margin-bottom: 4px; }
-        .admin-name { font-size: 14px; font-weight: 900; color: #000; margin-top: 4px; }
+        .admin-name { font-size: 12px; font-weight: 900; color: #000; margin-top: 2px; }
 
         /* QR code on back side */
         .back-qr { position: absolute; right: -20px; top: 15%; transform: translateY(-50%); width: 92px; height: 92px; background: white; padding: 6px; border: 2px solid #000; box-sizing: border-box; display:flex; align-items:center; justify-content:center; z-index:6; }

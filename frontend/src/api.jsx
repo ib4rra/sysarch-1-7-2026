@@ -192,6 +192,14 @@ export const disabilityAPI = {
     const response = await API.get('/disability/types');
     return response.data;
   },
+  getAllDisabilityConditions: async () => {
+    const response = await API.get('/disability/conditions');
+    return response.data;
+  },
+  getConditionsByDisabilityId: async (disabilityId) => {
+    const response = await API.get(`/disability/conditions/${disabilityId}`);
+    return response.data;
+  },
   getPwdDisabilities: async (pwdId) => {
     const response = await API.get(`/disability/pwd/${pwdId}`);
     return response.data;

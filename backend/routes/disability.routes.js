@@ -12,6 +12,8 @@ const router = express.Router();
  * Public routes
  */
 router.get('/types', verifyToken, DisabilityController.getDisabilityTypes);
+router.get('/conditions', verifyToken, DisabilityController.getAllDisabilityConditions);
+router.get('/conditions/:disabilityId', verifyToken, DisabilityController.getConditionsByDisabilityId);
 
 /**
  * Staff routes

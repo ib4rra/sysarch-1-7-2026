@@ -27,6 +27,50 @@ export const getDisabilityTypes = async (req, res) => {
 };
 
 /**
+ * Get all disability conditions
+ */
+export const getAllDisabilityConditions = async (req, res) => {
+  try {
+    const conditions = await DisabilityModel.getAllDisabilityConditions();
+
+    res.json({
+      success: true,
+      message: 'Disability conditions fetched successfully',
+      data: conditions,
+    });
+  } catch (err) {
+    console.error('Error fetching disability conditions:', err);
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to fetch disability conditions',
+    });
+  }
+};
+
+/**
+ * Get conditions for a specific disability type
+ */
+export const getConditionsByDisabilityId = async (req, res) => {
+  try {
+    const { disabilityId } = req.params;
+
+    const conditions = await DisabilityModel.getConditionsByDisabilityId(disabilityId);
+
+    res.json({
+      success: true,
+      message: 'Disability conditions fetched successfully',
+      data: conditions,
+    });
+  } catch (err) {
+    console.error('Error fetching disability conditions:', err);
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to fetch disability conditions',
+    });
+  }
+};
+
+/**
  * Get disabilities for PWD
  */
 export const getPwdDisabilities = async (req, res) => {
