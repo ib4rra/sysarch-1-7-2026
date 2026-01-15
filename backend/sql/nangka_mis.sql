@@ -138,7 +138,7 @@ INSERT INTO `disability_conditions` (`disability_id`, `condition_name`, `created
 (3, 'Muscular Dystrophy', '2026-01-15 00:00:00'),
 (3, 'Amputation', '2026-01-15 00:00:00'),
 (3, 'Arthritis', '2026-01-15 00:00:00'),
-(4, 'Down Syndrome', '2026-01-15 00:00:00'),
+(4, 'Congenital / Inborn - Down Syndrome', '2026-01-15 00:00:00'),
 (4, 'Autism Spectrum', '2026-01-15 00:00:00'),
 (4, 'Fragile X Syndrome', '2026-01-15 00:00:00'),
 (4, 'Williams Syndrome', '2026-01-15 00:00:00'),

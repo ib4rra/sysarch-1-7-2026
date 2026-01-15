@@ -544,23 +544,56 @@ const ManageView = () => {
         try {
           const response = await pwdAdminAPI.updateRegistrant(recordId, recordData);
           
-          // Refetch the updated record to verify it persisted in the database
-          const updatedResponse = await pwdAdminAPI.getRegistrantById(recordId);
-          const persistedRecord = updatedResponse?.data || updatedResponse;
+          // Update local state immediately with new data, merging with existing fields
+          setLocalRecords(prev => prev.map(row => {
+            const rowId = row.pwd_id || row.id;
+            if (rowId === recordId) {
+              // Merge the updated data with existing row data to preserve all fields
+              return {
+                ...row,
+                ...recordData,
+                firstName: recordData.firstName,
+                lastName: recordData.lastName,
+                middleName: recordData.middleName,
+                suffix: recordData.suffix,
+                gender: recordData.gender,
+                birthdate: recordData.dateOfBirth,
+                birth_date: recordData.dateOfBirth,
+                dateOfBirth: recordData.dateOfBirth,
+                hoa: recordData.hoa,
+                address: recordData.address,
+                contactNo: recordData.contactNumber,
+                contact_no: recordData.contactNumber,
+                tagNo: recordData.tagNo,
+                tag_no: recordData.tagNo,
+                guardian: recordData.emergencyContact,
+                guardianContact: recordData.emergencyNumber,
+                guardian_contact: recordData.emergencyNumber,
+                disabilityType: recordData.disabilityType,
+                disability_type: recordData.disabilityType,
+                disabilityCause: recordData.disabilityCause,
+                disability_cause: recordData.disabilityCause,
+                registrationStatus: recordData.registrationStatus,
+                registration_status: recordData.registrationStatus,
+                status: recordData.registrationStatus,
+                clusterGroupNo: recordData.clusterGroupNo,
+                cluster_group_no: recordData.clusterGroupNo,
+                age: recordData.dateOfBirth ? calculateAge(recordData.dateOfBirth) : row.age,
+              };
+            }
+            return row;
+          }));
           
-          // Update local state with the database response to ensure it matches
-          if (persistedRecord) {
-            setLocalRecords(prev => prev.map(row => (row.pwd_id || row.id) === recordId ? persistedRecord : row));
-            setShowFormModal(false);
-            alert('Record updated successfully!');
-          } else {
-            throw new Error('Failed to verify update');
-          }
+          setShowFormModal(false);
+          setEditingRecord(null);
+          // Silently update without alert, refresh the full list after a short delay to sync with server
+          setTimeout(() => {
+            refreshRecords();
+          }, 500);
         } catch (err) {
           console.error('Error updating record:', err);
           setError(err.message || 'Failed to update record');
           alert('Error: ' + (err.message || 'Failed to update record'));
-        } finally {
           setIsLoading(false);
         }
         return;
@@ -890,21 +923,36 @@ const ManageView = () => {
 
     return (
       <tr key={uniqueId} className={`transition-all duration-200 hover:bg-gradient-to-r hover:from-[#800000]/5 hover:to-red-50/50 group ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
-        <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-bold text-xs">{row.tagNo || row.tag_no || <span className="text-gray-400">—</span>}</td>
-        <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">{row.formattedPwdId || <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-bold text-xs">{row.tagNo || row.tag_no || row.tag_number || <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">{row.formattedPwdId || row.pwd_id || row.pwdId || row.id || <span className="text-gray-400">—</span>}</td>
         <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-semibold">
           {(() => {
-            const firstName = row.firstname || row.firstName || '';
-            const middleName = row.middlename || row.middleName || '';
-            const lastName = row.lastname || row.lastName || '';
+            const firstName = row.firstName || row.firstname || row.first_name || '';
+            const middleName = row.middleName || row.middlename || row.middle_name || '';
+            const lastName = row.lastName || row.lastname || row.last_name || '';
             const fullName = `${firstName} ${middleName} ${lastName}`.trim();
             return fullName || <span className="text-gray-400">—</span>;
           })()}
         </td>
-        <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">{getDisabilityName(row.disability_type || row.disabilityType) || <span className="text-gray-400">—</span>}</td>
-        <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">Group {row.cluster_group_no || row.clusterGroupNo || 'N/A'}</td>
-        <td className="px-5 py-4 text-gray-900 whitespace-nowrap text-sm">{row.age || <span className="text-gray-400">—</span>}</td>
-        <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs font-medium">{row.hoa || <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">
+          {(() => {
+            const disabilityName = getDisabilityName(row.disability_type || row.disabilityType);
+            const cause = row.disability_cause || row.disabilityCause;
+            if (!disabilityName) return <span className="text-gray-400">—</span>;
+            return cause ? `${disabilityName} - ${cause}` : disabilityName;
+          })()}
+        </td>
+        <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">Group {row.cluster_group_no || row.clusterGroupNo || row.cluster || 'N/A'}</td>
+        <td className="px-5 py-4 text-gray-900 whitespace-nowrap text-sm">
+          {(() => {
+            const age = row.age || row.Age;
+            if (age) return age;
+            const birthdate = row.birthdate || row.birth_date || row.dateOfBirth;
+            if (birthdate) return calculateAge(birthdate) || <span className="text-gray-400">—</span>;
+            return <span className="text-gray-400">—</span>;
+          })()}
+        </td>
+        <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs font-medium">{row.hoa || row.hoa_name || row.homeowners || <span className="text-gray-400">—</span>}</td>
         <td className="px-5 py-4 whitespace-nowrap">
           <span className={`inline-flex justify-center items-center px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
             (row.registration_status || row.status) === 'Active' 
@@ -1353,7 +1401,7 @@ const ManageView = () => {
                       </div>
 
                       <div className="administration-section">
-                         <p className="admin-label">UNDER THE ADMINISTRATION OF</p>
+                        
                          <div className="admin-signature-line"></div>
                          <p className="admin-name">CELSO R. DELAS ARMAS JR.</p>
                          <p className="admin-label" style={{marginTop: '0px', marginBottom: '0px'}}>Punong Barangay</p>
