@@ -107,6 +107,61 @@ INSERT INTO `disability_types` (`disability_id`, `disability_name`, `description
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `disability_conditions`
+--
+
+CREATE TABLE `disability_conditions` (
+  `condition_id` int(11) NOT NULL,
+  `disability_id` int(11) NOT NULL,
+  `condition_name` varchar(100) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  FOREIGN KEY (`disability_id`) REFERENCES `disability_types`(`disability_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `disability_conditions`
+--
+
+INSERT INTO `disability_conditions` (`disability_id`, `condition_name`, `created_at`) VALUES
+(1, 'Cataract', '2026-01-15 00:00:00'),
+(1, 'Retinitis Pigmentosa', '2026-01-15 00:00:00'),
+(1, 'Macular Degeneration', '2026-01-15 00:00:00'),
+(1, 'Diabetic Retinopathy', '2026-01-15 00:00:00'),
+(1, 'Color Blindness', '2026-01-15 00:00:00'),
+(2, 'Complete Deafness', '2026-01-15 00:00:00'),
+(2, 'Hard of Hearing', '2026-01-15 00:00:00'),
+(2, 'Auditory Processing Disorder', '2026-01-15 00:00:00'),
+(2, 'Tinnitus', '2026-01-15 00:00:00'),
+(2, 'Conductive Hearing Loss', '2026-01-15 00:00:00'),
+(3, 'Spinal Cord Injury', '2026-01-15 00:00:00'),
+(3, 'Cerebral Palsy', '2026-01-15 00:00:00'),
+(3, 'Muscular Dystrophy', '2026-01-15 00:00:00'),
+(3, 'Amputation', '2026-01-15 00:00:00'),
+(3, 'Arthritis', '2026-01-15 00:00:00'),
+(4, 'Down Syndrome', '2026-01-15 00:00:00'),
+(4, 'Autism Spectrum', '2026-01-15 00:00:00'),
+(4, 'Fragile X Syndrome', '2026-01-15 00:00:00'),
+(4, 'Williams Syndrome', '2026-01-15 00:00:00'),
+(4, 'Intellectual Delay', '2026-01-15 00:00:00'),
+(5, 'Depression', '2026-01-15 00:00:00'),
+(5, 'Anxiety Disorder', '2026-01-15 00:00:00'),
+(5, 'Bipolar Disorder', '2026-01-15 00:00:00'),
+(5, 'Schizophrenia', '2026-01-15 00:00:00'),
+(5, 'PTSD', '2026-01-15 00:00:00'),
+(6, 'Stuttering', '2026-01-15 00:00:00'),
+(6, 'Apraxia', '2026-01-15 00:00:00'), 
+(6, 'Dysarthria', '2026-01-15 00:00:00'),
+(6, 'Aphasia', '2026-01-15 00:00:00'),
+(6, 'Voice Disorder', '2026-01-15 00:00:00'),
+(7, 'Deaf-Blindness', '2026-01-15 00:00:00'),
+(7, 'Physical + Hearing', '2026-01-15 00:00:00'),
+(7, 'Intellectual + Physical', '2026-01-15 00:00:00'),
+(7, 'Visual + Speech', '2026-01-15 00:00:00'),
+(7, 'Combined Conditions', '2026-01-15 00:00:00');
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `documents`
 --
 
@@ -142,9 +197,10 @@ CREATE TABLE `nangka_pwd_user` (
   `address` text NOT NULL,
   `barangay` varchar(100) DEFAULT 'Nangka',
   `contact_no` varchar(20) DEFAULT NULL,
+  `tag_no` varchar(50) DEFAULT NULL COMMENT 'Manual tag number for PWD ID',
   `disability_type` int(11) DEFAULT NULL COMMENT 'Foreign key reference to disability_types table',
   `disability_cause` varchar(255) DEFAULT NULL COMMENT 'Cause of disability (e.g., Congenital - Birth Defect)',
-  `registration_status` enum('Active','Pending','Inactive') DEFAULT 'Active' COMMENT 'PWD registration status',
+  `registration_status` enum('Active','Pending','Inactive','Disease') DEFAULT 'Active' COMMENT 'PWD registration status',
   `guardian_name` varchar(255) DEFAULT NULL,
   `guardian_contact` varchar(20) DEFAULT NULL,
   `registration_date` timestamp NOT NULL DEFAULT current_timestamp(),
@@ -157,13 +213,13 @@ CREATE TABLE `nangka_pwd_user` (
 -- Dumping data for table `nangka_pwd_user`
 --
 
-INSERT INTO `nangka_pwd_user` (`pwd_id`, `firstname`, `middlename`, `lastname`, `suffix`, `sex`, `birthdate`, `age`, `civil_status`, `hoa`, `address`, `barangay`, `contact_no`, `disability_type`, `disability_cause`, `registration_status`, `guardian_name`, `guardian_contact`, `registration_date`, `updated_at`, `is_active`, `cluster_group_no`) VALUES
-(1, 'SHOBE', 'ROQUE', 'PIERRE', NULL, 'Male', '2004-08-22', 21, 'Single', 'PAROLA', '0123 BARANGAY MARIKINA, NANGKA', 'Nangka', '09167498805', 3, 'Congenital / Inborn - HEART CONDITION', 'Active', 'JUAN DELA CRUZ', '09876543122', '2026-01-10 01:45:18', '2026-01-10 01:45:18', 1, 1),
-(2, 'SEBASTIAN', 'BOLANTE', 'ONNAGAN', NULL, 'Male', '2004-05-01', 21, 'Single', 'SAMPALOC', '0123 BARANGAY MARIKINA, NANGKA', 'Nangka', '09123456789', 1, 'Acquired - CATARATA', 'Active', 'JUAN DELA CRUZ', '09876543122', '2026-01-10 01:46:48', '2026-01-10 01:46:48', 1, 1),
-(3, 'IVELL', 'JAY', 'IBARRA', NULL, 'Male', '2004-10-31', 21, 'Single', 'NANGKA', '0123 BARANGAY MARIKINA, NANGKA', 'Nangka', '09123456789', 6, 'Acquired - BULOL SA LETTER R', 'Active', 'JUAN DELA CRUZ', '09876543122', '2026-01-10 01:50:12', '2026-01-10 01:50:12', 1, 2),
-(4, 'RAPH ', 'KENNETH ', 'ZAMBRONA', NULL, 'Male', '2004-12-18', 21, 'Single', 'TONDO', '0123 BARANGAY MARIKINA, NANGKA', 'Nangka', '09123456789', 2, 'Congenital / Inborn - CHICKEN FOX', 'Active', 'JUAN DELA CRUZ', '09876543122', '2026-01-10 01:51:18', '2026-01-10 01:51:18', 1, 3),
-(5, 'JOSHUA', 'JAN', 'TRAQUEÑA', NULL, 'Male', '2004-01-01', 22, 'Single', 'QC', '0123 BARANGAY MARIKINA, NANGKA', 'Nangka', '09123456789', 1, 'Congenital / Inborn - catarata', 'Active', 'JUAN DELA CRUZ', '09876543122', '2026-01-10 01:53:50', '2026-01-10 01:53:50', 1, 4),
-(6, 'JEREMY ', 'MUME', 'ALBUERA', NULL, 'Male', '2004-08-21', 21, 'Single', 'ANTIPOLO', '0123 BARANGAY MARIKINA, NANGKA', 'Nangka', '09123456789', 6, 'Congenital / Inborn - NORMAL', 'Active', 'JUAN DELA CRUZ', '09876543122', '2026-01-10 01:56:09', '2026-01-10 01:56:09', 1, 5);
+INSERT INTO `nangka_pwd_user` (`pwd_id`, `firstname`, `middlename`, `lastname`, `suffix`, `sex`, `birthdate`, `age`, `civil_status`, `hoa`, `address`, `barangay`, `contact_no`, `tag_no`, `disability_type`, `disability_cause`, `registration_status`, `guardian_name`, `guardian_contact`, `registration_date`, `updated_at`, `is_active`, `cluster_group_no`) VALUES
+(1, 'SHOBE', 'ROQUE', 'PIERRE', NULL, 'Male', '2004-08-22', 21, 'Single', 'PAROLA', '0123 BARANGAY MARIKINA, NANGKA', 'Nangka', '09167498805', '001', 3, 'Congenital / Inborn - HEART CONDITION', 'Active', 'JUAN DELA CRUZ', '09876543122', '2026-01-10 01:45:18', '2026-01-10 01:45:18', 1, 1),
+(2, 'SEBASTIAN', 'BOLANTE', 'ONNAGAN', NULL, 'Male', '2004-05-01', 21, 'Single', 'SAMPALOC', '0123 BARANGAY MARIKINA, NANGKA', 'Nangka', '09123456789', '002', 1, 'Acquired - CATARATA', 'Active', 'JUAN DELA CRUZ', '09876543122', '2026-01-10 01:46:48', '2026-01-10 01:46:48', 1, 1),
+(3, 'IVELL', 'JAY', 'IBARRA', NULL, 'Male', '2004-10-31', 21, 'Single', 'NANGKA', '0123 BARANGAY MARIKINA, NANGKA', 'Nangka', '09123456789', '003', 6, 'Acquired - BULOL SA LETTER R', 'Active', 'JUAN DELA CRUZ', '09876543122', '2026-01-10 01:50:12', '2026-01-10 01:50:12', 1, 2),
+(4, 'RAPH ', 'KENNETH ', 'ZAMBRONA', NULL, 'Male', '2004-12-18', 21, 'Single', 'TONDO', '0123 BARANGAY MARIKINA, NANGKA', 'Nangka', '09123456789', '004', 2, 'Congenital / Inborn - CHICKEN FOX', 'Active', 'JUAN DELA CRUZ', '09876543122', '2026-01-10 01:51:18', '2026-01-10 01:51:18', 1, 3),
+(5, 'JOSHUA', 'JAN', 'TRAQUEÑA', NULL, 'Male', '2004-01-01', 22, 'Single', 'QC', '0123 BARANGAY MARIKINA, NANGKA', 'Nangka', '09123456789', '005', 1, 'Congenital / Inborn - catarata', 'Active', 'JUAN DELA CRUZ', '09876543122', '2026-01-10 01:53:50', '2026-01-10 01:53:50', 1, 4),
+(6, 'JEREMY ', 'MUME', 'ALBUERA', NULL, 'Male', '2004-08-21', 21, 'Single', 'ANTIPOLO', '0123 BARANGAY MARIKINA, NANGKA', 'Nangka', '09123456789', '006', 6, 'Congenital / Inborn - NORMAL', 'Active', 'JUAN DELA CRUZ', '09876543122', '2026-01-10 01:56:09', '2026-01-10 01:56:09', 1, 5);
 
 -- --------------------------------------------------------
 

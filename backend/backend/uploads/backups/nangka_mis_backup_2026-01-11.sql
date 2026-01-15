@@ -1,4 +1,4 @@
--- Nangka MIS backup generated at 2026-01-11T15:41:19.587Z
+-- Nangka MIS backup generated at 2026-01-11T15:53:28.523Z
 SET FOREIGN_KEY_CHECKS=0;
 
 DROP TABLE IF EXISTS `activity_logs`;

@@ -28,7 +28,7 @@ export const getAllRegistrants = async (page = 1, limit = 10) => {
     const offset = (page - 1) * limit;
     // Fetch registrants with their formatted PWD IDs using LEFT JOIN
     const [rows] = await db.query(
-      `SELECT u.pwd_id, u.firstname, u.middlename, u.lastname, u.suffix, u.sex, u.birthdate, u.age, u.contact_no, u.address, u.hoa, u.disability_type, u.disability_cause, u.registration_status, u.guardian_name, u.guardian_contact, u.registration_date, u.cluster_group_no, u.is_active, l.pwd_id as formattedPwdId, l.qr_image_path as qr_image_path
+      `SELECT u.pwd_id, u.firstname, u.middlename, u.lastname, u.suffix, u.sex, u.birthdate, u.age, u.contact_no, u.address, u.hoa, u.disability_type, u.disability_cause, u.registration_status, u.guardian_name, u.guardian_contact, u.registration_date, u.cluster_group_no, u.is_active, u.tag_no, l.pwd_id as formattedPwdId, l.qr_image_path as qr_image_path
        FROM Nangka_PWD_user u
        LEFT JOIN pwd_user_login l ON l.numeric_pwd_id = u.pwd_id
        ORDER BY u.registration_date DESC
@@ -123,6 +123,7 @@ export const create = async (pwdData) => {
     address,
     barangay,
     contactNumber,
+    tagNo,
     emergencyContact,
     emergencyNumber,
     disabilityType,
@@ -139,8 +140,8 @@ export const create = async (pwdData) => {
     const age = calculateAge(dateOfBirth);
     const [result] = await db.query(
       `INSERT INTO Nangka_PWD_user 
-       (firstname, middlename, lastname, suffix, sex, birthdate, age, civil_status, hoa, address, barangay, contact_no, disability_type, disability_cause, registration_status, guardian_name, guardian_contact, cluster_group_no)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (firstname, middlename, lastname, suffix, sex, birthdate, age, civil_status, hoa, address, barangay, contact_no, tag_no, disability_type, disability_cause, registration_status, guardian_name, guardian_contact, cluster_group_no)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         firstName,
         middleName,
@@ -154,6 +155,7 @@ export const create = async (pwdData) => {
         address || '',
         barangay || 'Nangka',
         contactNumber,
+        tagNo || null,
         disabilityType || null,
         disabilityCause || null,
         registrationStatus || 'Active',
@@ -215,6 +217,7 @@ export const update = async (pwdId, updateData) => {
     address: 'address',
     barangay: 'barangay',
     contactNumber: 'contact_no',
+    tagNo: 'tag_no',
     emergencyContact: 'guardian_name',
     emergencyNumber: 'guardian_contact',
     disabilityType: 'disability_type',
