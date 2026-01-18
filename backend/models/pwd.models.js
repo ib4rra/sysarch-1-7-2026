@@ -26,11 +26,12 @@ const calculateAge = (birthdate) => {
 export const getAllRegistrants = async (page = 1, limit = 10) => {
   try {
     const offset = (page - 1) * limit;
-    // Fetch registrants with their formatted PWD IDs using LEFT JOIN
+    // Fetch registrants with their formatted PWD IDs using LEFT JOINs
     const [rows] = await db.query(
-      `SELECT u.pwd_id, u.firstname, u.middlename, u.lastname, u.suffix, u.sex, u.birthdate, u.age, u.contact_no, u.address, u.hoa, u.disability_type, u.disability_cause, u.registration_status, u.guardian_name, u.guardian_contact, u.registration_date, u.cluster_group_no, u.is_active, u.tag_no, l.pwd_id as formattedPwdId, l.qr_image_path as qr_image_path
+      `SELECT u.pwd_id, u.firstname, u.middlename, u.lastname, u.suffix, u.sex, u.birthdate, u.age, u.contact_no, u.address, u.hoa, u.disability_type, u.disability_cause, u.registration_status, u.guardian_name, u.guardian_contact, u.registration_date, u.cluster_group_no, u.cluster_group_area, u.is_active, u.tag_no, l.pwd_id as formattedPwdId, l.qr_image_path as qr_image_path, cad.area_name
        FROM Nangka_PWD_user u
        LEFT JOIN pwd_user_login l ON l.numeric_pwd_id = u.pwd_id
+       LEFT JOIN cluster_area_definitions cad ON cad.cluster_no = u.cluster_group_no AND cad.area_letter = u.cluster_group_area
        ORDER BY u.registration_date DESC
        LIMIT ? OFFSET ?`,
       [limit, offset]
@@ -130,6 +131,7 @@ export const create = async (pwdData) => {
     disabilityCause,
     registrationStatus,
     clusterGroupNo,
+    clusterGroupArea,
   } = pwdData;
 
   if (!firstName || !lastName || !contactNumber) {
@@ -137,11 +139,33 @@ export const create = async (pwdData) => {
   }
 
   try {
+    // Check if contact_no already exists
+    if (contactNumber) {
+      const [existingContact] = await db.query(
+        'SELECT pwd_id FROM Nangka_PWD_user WHERE contact_no = ? LIMIT 1',
+        [contactNumber]
+      );
+      if (existingContact.length > 0) {
+        throw new Error(`Contact number "${contactNumber}" is already registered`);
+      }
+    }
+
+    // Check if tag_no already exists (if provided)
+    if (tagNo) {
+      const [existingTag] = await db.query(
+        'SELECT pwd_id FROM Nangka_PWD_user WHERE tag_no = ? LIMIT 1',
+        [tagNo]
+      );
+      if (existingTag.length > 0) {
+        throw new Error(`Tag number "${tagNo}" is already in use`);
+      }
+    }
+
     const age = calculateAge(dateOfBirth);
     const [result] = await db.query(
       `INSERT INTO Nangka_PWD_user 
-       (firstname, middlename, lastname, suffix, sex, birthdate, age, civil_status, hoa, address, barangay, contact_no, tag_no, disability_type, disability_cause, registration_status, guardian_name, guardian_contact, cluster_group_no)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (firstname, middlename, lastname, suffix, sex, birthdate, age, civil_status, hoa, address, barangay, contact_no, tag_no, disability_type, disability_cause, registration_status, guardian_name, guardian_contact, cluster_group_no, cluster_group_area)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         firstName,
         middleName,
@@ -162,6 +186,7 @@ export const create = async (pwdData) => {
         emergencyContact || '',
         emergencyNumber || '',
         clusterGroupNo || 1,
+        clusterGroupArea || null,
       ]
     );
 
@@ -175,7 +200,8 @@ export const create = async (pwdData) => {
       age: age,
       contact_no: contactNumber, 
       barangay: barangay || 'Nangka', 
-      cluster_group_no: clusterGroupNo || 1, 
+      cluster_group_no: clusterGroupNo || 1,
+      cluster_group_area: clusterGroupArea || null,
       disability_type: disabilityType || null,
       disability_cause: disabilityCause || null,
       registration_status: registrationStatus || 'Active',
@@ -224,6 +250,7 @@ export const update = async (pwdId, updateData) => {
     disabilityCause: 'disability_cause',
     registrationStatus: 'registration_status',
     clusterGroupNo: 'cluster_group_no',
+    clusterGroupArea: 'cluster_group_area',
   };
 
   const entries = Object.entries(updateData).filter(([key]) => Object.keys(mapping).includes(key));

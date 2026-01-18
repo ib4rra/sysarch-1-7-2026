@@ -12,6 +12,7 @@ router.get('/logs', SystemController.getAuditLogs);
 
 // Staff/Users
 router.get('/users', SystemController.getStaffUsers);
+router.post('/users', SystemController.createStaffUser);
 
 // Backup
 router.get('/backup', SystemController.downloadBackup);

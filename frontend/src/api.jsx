@@ -174,6 +174,13 @@ export const pwdAdminAPI = {
     const response = await API.post('/pwd', payload);
     return response.data;
   },
+  checkDuplicate: async (contactNumber, tagNo) => {
+    const params = new URLSearchParams();
+    if (contactNumber) params.append('contactNumber', contactNumber);
+    if (tagNo) params.append('tagNo', tagNo);
+    const response = await API.get(`/pwd/check/duplicate?${params.toString()}`);
+    return response.data;
+  },
   updateRegistrant: async (pwdId, payload) => {
     const response = await API.put(`/pwd/${pwdId}`, payload);
     return response.data;
@@ -239,6 +246,18 @@ export const settingsAPI = {
   },
   getStaff: async () => {
     const response = await API.get('/admin/users');
+    return response.data;
+  },
+  createStaff: async (userData) => {
+    const response = await API.post('/admin/users', userData);
+    return response.data;
+  },
+  updateStaff: async (userId, userData) => {
+    const response = await API.put(`/admin/users/${userId}`, userData);
+    return response.data;
+  },
+  deleteStaff: async (userId) => {
+    const response = await API.delete(`/admin/users/${userId}`);
     return response.data;
   },
   downloadBackup: async () => {

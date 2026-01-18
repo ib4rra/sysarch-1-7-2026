@@ -133,7 +133,7 @@ export const createNewAnnouncement = async (req, res) => {
 export const updateAnnouncementData = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, content, notice_type, is_active } = req.body;
+    const { title, content, notice_type, is_active, event_date, start_time, end_time } = req.body;
 
     if (!id || isNaN(id)) {
       return res.status(400).json({
@@ -158,6 +158,9 @@ export const updateAnnouncementData = async (req, res) => {
     if (content !== undefined) updateData.content = content;
     if (notice_type !== undefined) updateData.notice_type = notice_type;
     if (is_active !== undefined) updateData.is_active = is_active;
+    if (event_date !== undefined) updateData.event_date = event_date;
+    if (start_time !== undefined) updateData.start_time = start_time;
+    if (end_time !== undefined) updateData.end_time = end_time;
 
     const success = await updateAnnouncement(id, updateData);
 

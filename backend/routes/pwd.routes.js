@@ -6,6 +6,7 @@ const router = express.Router();
 
 router.get('/verify/:id', PwdController.verifyRegistrant); 
 router.get('/search', verifyToken, PwdController.searchRegistrants);
+router.get('/check/duplicate', verifyToken, PwdController.checkDuplicate);
 
 
 router.get('/', verifyToken, authorizeRoles([1, 2, 3, 4]), PwdController.getAllRegistrants);

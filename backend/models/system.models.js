@@ -20,13 +20,10 @@ export const upsertSetting = async (key, value) => {
 // --- LOGS ---
 
 export const getLogs = async (limit, offset) => {
-  // Added 'al.details' (or whatever your specific column name is)
-  // If you don't have a details column, you can construct it using CONCAT
   const query = `
     SELECT 
       al.created_at as timestamp, 
-      al.action, 
-      al.details,  -- Make sure this column exists in your DB!
+      al.action,
       p.fullname as user
     FROM activity_logs al
     LEFT JOIN person_in_charge p ON al.person_id = p.person_id
@@ -34,9 +31,6 @@ export const getLogs = async (limit, offset) => {
     LIMIT ? OFFSET ?
   `;
   
-  // Note: db.query arguments might need to be integers for LIMIT/OFFSET 
-  // depending on your mysql driver version. 
-  // Using explicit casting helps prevent errors.
   const [rows] = await db.query(query, [Number(limit), Number(offset)]);
   return rows;
 };
@@ -52,4 +46,23 @@ export const getAllStaff = async () => {
   `;
   const [rows] = await db.query(query);
   return rows;
+};
+
+export const createStaffUser = async (userData) => {
+  const { username, fullname, password, roleId, isActive } = userData;
+  
+  const query = `
+    INSERT INTO person_in_charge (username, fullname, password, role_id, is_active)
+    VALUES (?, ?, ?, ?, ?)
+  `;
+  
+  const [result] = await db.query(query, [username, fullname, password, roleId, isActive]);
+
+  return {
+    id: result.insertId,
+    username,
+    name: fullname,
+    role: roleId === 1 ? 'Super Admin' : 'Admin',
+    status: 'Active'
+  };
 };

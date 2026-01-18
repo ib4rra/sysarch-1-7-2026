@@ -12,6 +12,7 @@ const router = express.Router();
  */
 router.get('/dashboard', verifyToken, authorizeRoles([2]), AdminController.getAdminDashboard);
 router.get('/users', verifyToken, authorizeRoles([1,2]), AdminController.getAllUsers);
+router.post('/users', verifyToken, authorizeRoles([1,2]), SettingsController.createStaffUser);
 router.put('/users/:userId', verifyToken, authorizeRoles([1,2]), AdminController.updateUser);
 router.delete('/users/:userId', verifyToken, authorizeRoles([1,2]), AdminController.deleteUser);
 

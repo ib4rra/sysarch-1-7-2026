@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2, Filter, X, Eye, Printer, Camera, Save,User,HeartPulse,MoreHorizontal,CreditCard,ChevronLeft,ChevronRight,MapPin,Upload,FileText,Phone, Download, CheckCircle, AlertTriangle, AlignCenter } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Filter, X, Eye, Printer, Camera, Save,User,HeartPulse,MoreHorizontal,CreditCard,ChevronLeft,ChevronRight,MapPin,Upload,FileText,Phone, Download, CheckCircle, AlertTriangle, AlignCenter, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { pwdAdminAPI } from '../../api';
 
 
@@ -101,6 +101,8 @@ const ManageView = () => {
   const [selectedDisabilityType, setSelectedDisabilityType] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [contactNumberError, setContactNumberError] = useState('');
+  const [tagNumberError, setTagNumberError] = useState('');
 
   // Delete confirmation state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -115,7 +117,8 @@ const ManageView = () => {
   const [filterCriteria, setFilterCriteria] = useState({
     status: '',
     disabilityType: '',
-    clusterGroupNo: ''
+    clusterGroupNo: '',
+    hoa: ''
   });
 
   const [disabilityConditions, setDisabilityConditions] = useState({});  // Store conditions by disability ID
@@ -176,6 +179,7 @@ const ManageView = () => {
 
   const [showClusterModal, setShowClusterModal] = useState(false);
   const [selectedCluster, setSelectedCluster] = useState(null);
+  const [clusterGroupArea, setClusterGroupArea] = useState('');
 
  // --- HELPER FUNCTIONS FOR DATA NORMALIZATION ---
 
@@ -213,6 +217,22 @@ const ManageView = () => {
     if (!disabilityId) return [];
     const idNum = parseInt(disabilityId);
     return disabilityConditions[idNum] || [];
+  };
+
+  // 4. Format Cluster Display with Area (e.g., "2 - A - Twin River Subdivision & Bayabas Extension")
+  const formatClusterDisplay = (clusterNo, areaLetter, areaName) => {
+    if (!clusterNo) return 'N/A';
+    if (!areaLetter) return `${clusterNo}`;
+    if (!areaName) return `${clusterNo} - ${areaLetter}`;
+    return `${clusterNo} - ${areaLetter} - ${areaName}`;
+  };
+
+  // 5. Get Cluster Area Display (e.g., "Cluster 2 - A - Twin River Subdivision & Bayabas Extension")
+  const getClusterAreaDisplay = (clusterNo, areaLetter, areaName) => {
+    if (!clusterNo) return 'N/A';
+    if (!areaLetter) return `Cluster ${clusterNo}`;
+    if (!areaName) return `Cluster ${clusterNo} - ${areaLetter}`;
+    return `Cluster ${clusterNo} - ${areaLetter} - ${areaName}`;
   };
 
   // 4. FIX FOR BIRTHDATE: Convert ISO timestamp to YYYY-MM-DD
@@ -255,6 +275,8 @@ const ManageView = () => {
       guardianContact: r.guardianContact || r.guardian_contact || r.guardian_contact_no || null,
       // cluster and status
       clusterGroupNo: r.clusterGroupNo || r.cluster_group_no || r.cluster || null,
+      clusterGroupArea: r.clusterGroupArea || r.cluster_group_area || null,
+      area_name: r.area_name || null,
       status: r.status || r.registration_status || r.registrationStatus || null,
       // address and hoa
       address: r.address || r.full_address || r.ADDRESS || '',
@@ -376,23 +398,41 @@ const ManageView = () => {
       const matchesStatus = filterCriteria.status ? String(row.registration_status || row.status || '').toLowerCase() === String(filterCriteria.status).toLowerCase() : true;
       const matchesType = filterCriteria.disabilityType ? String(getDisabilityName(row.disabilityType || row.disability_type) || '').toLowerCase() === String(filterCriteria.disabilityType).toLowerCase() : true;
       
-      // Debug cluster filtering
+      // Cluster filtering
       let matchesCluster = true;
       if (filterCriteria.clusterGroupNo) {
         const rowCluster = String(row.cluster_group_no || row.clusterGroupNo || '').trim();
         const filterCluster = String(filterCriteria.clusterGroupNo).trim();
         matchesCluster = rowCluster === filterCluster;
-        if (row.firstname === 'IVELL') { // Debug log for one record
-          console.log(`Cluster filter debug: row=${rowCluster} vs filter=${filterCluster}, match=${matchesCluster}`);
-        }
+      }
+      
+      // HOA filtering
+      let matchesHOA = true;
+      if (filterCriteria.hoa) {
+        const rowHOA = String(row.hoa || row.hoa_name || row.homeowners || '').toLowerCase().trim();
+        const filterHOA = String(filterCriteria.hoa).toLowerCase().trim();
+        matchesHOA = rowHOA === filterHOA;
       }
 
-      return matchesSearch && matchesStatus && matchesType && matchesCluster;
+      return matchesSearch && matchesStatus && matchesType && matchesCluster && matchesHOA;
     });
   }, [localRecords, searchQuery, filterCriteria]);
 
   const totalPages = Math.ceil(filteredRows.length / itemsPerPage);
   const currentItems = filteredRows.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  // Check for duplicate contact number or tag number
+  const checkForDuplicates = async (contactNo, tagNo) => {
+    if (!contactNo && !tagNo) return;
+    
+    try {
+      const dupCheck = await pwdAdminAPI.checkDuplicate(contactNo, tagNo);
+      setContactNumberError(dupCheck.data.contactNumberExists ? dupCheck.data.contactNumberMessage : '');
+      setTagNumberError(dupCheck.data.tagNoExists ? dupCheck.data.tagNoMessage : '');
+    } catch (err) {
+      console.warn('Duplicate check warning:', err);
+    }
+  };
 
   const handleAddNew = () => {
     setEditingRecord(null);
@@ -401,6 +441,9 @@ const ManageView = () => {
     setSelectedCondition('');
     setIsCustomCondition(false);
     setSelectedDisabilityType('');
+    setContactNumberError('');
+    setTagNumberError('');
+    setClusterGroupArea('');
     setShowFormModal(true);
   };
 
@@ -444,6 +487,7 @@ const ManageView = () => {
     }
     const disabilityValue = getDisabilityValueForForm(record);
     setSelectedDisabilityType(disabilityValue);
+    setClusterGroupArea(record.clusterGroupArea || record.cluster_group_area || '');
     setShowFormModal(true);
   };
 
@@ -502,6 +546,34 @@ const ManageView = () => {
     if (typeof formEl.reportValidity === 'function' && !formEl.reportValidity()) {
       return;
     }
+    
+    // Check if area is selected
+    if (!clusterGroupArea) {
+      alert('Please select an area for the cluster');
+      return;
+    }
+
+    // Check if Contact Number is filled
+    const contactNo = formEl.querySelector('[name="contactNo"]').value.trim();
+    if (!contactNo) {
+      alert('Contact Number is required');
+      return;
+    }
+
+    // Check if Tag No. is filled
+    const tagNo = formEl.querySelector('[name="tagNo"]').value.trim();
+    if (!tagNo) {
+      alert('Tag No. is required');
+      return;
+    }
+
+    // Check if PWD ID is filled
+    const pwdId = formEl.querySelector('[name="pwdId"]').value.trim();
+    if (!pwdId) {
+      alert('PWD ID is required');
+      return;
+    }
+    
     setIsLoading(true);
     setError(null);
 
@@ -530,16 +602,18 @@ const ManageView = () => {
         address: String(formData.get('address') || '').toUpperCase(),
         contactNumber: String(formData.get('contactNo') || ''),  // Backend expects 'contactNumber'
         tagNo: String(formData.get('tagNo') || ''),  // Manual tag number input
+        pwdId: String(formData.get('pwdId') || ''),  // PWD ID field
         emergencyContact: String(formData.get('guardian') || '').toUpperCase(),  // Maps to 'emergencyContact'
         emergencyNumber: String(formData.get('guardianContact') || ''),  // Maps to 'emergencyNumber'
         disabilityType: getDisabilityId(String(formData.get('disabilityType') || '')),  // Convert name to ID
         disabilityCause: finalCause,
         registrationStatus: String(formData.get('status') || 'Active'),
         clusterGroupNo: String(formData.get('clusterGroupNo') || '1'),
+        clusterGroupArea: String(clusterGroupArea || ''),
       };
 
       if (editingRecord) {
-        // Update existing record
+        // Update existing record - no need to check duplicates for existing records
         const recordId = editingRecord.pwd_id || editingRecord.id;
         try {
           const response = await pwdAdminAPI.updateRegistrant(recordId, recordData);
@@ -566,6 +640,8 @@ const ManageView = () => {
                 contact_no: recordData.contactNumber,
                 tagNo: recordData.tagNo,
                 tag_no: recordData.tagNo,
+                pwdId: recordData.pwdId,
+                pwd_id: recordData.pwdId,
                 guardian: recordData.emergencyContact,
                 guardianContact: recordData.emergencyNumber,
                 guardian_contact: recordData.emergencyNumber,
@@ -578,6 +654,8 @@ const ManageView = () => {
                 status: recordData.registrationStatus,
                 clusterGroupNo: recordData.clusterGroupNo,
                 cluster_group_no: recordData.clusterGroupNo,
+                clusterGroupArea: recordData.clusterGroupArea,
+                cluster_group_area: recordData.clusterGroupArea,
                 age: recordData.dateOfBirth ? calculateAge(recordData.dateOfBirth) : row.age,
               };
             }
@@ -598,6 +676,24 @@ const ManageView = () => {
         }
         return;
       } else {
+        // Check for duplicates before creating new record
+        try {
+          const dupCheck = await pwdAdminAPI.checkDuplicate(recordData.contactNumber, recordData.tagNo);
+          if (dupCheck.data.contactNumberExists) {
+            alert('❌ ' + dupCheck.data.contactNumberMessage);
+            setIsLoading(false);
+            return;
+          }
+          if (dupCheck.data.tagNoExists) {
+            alert('❌ ' + dupCheck.data.tagNoMessage);
+            setIsLoading(false);
+            return;
+          }
+        } catch (dupErr) {
+          console.warn('Duplicate check warning:', dupErr);
+          // Continue anyway if check fails
+        }
+
         // Queue create payload and show confirmation modal instead of immediate create
         setPendingCreatePayload(recordData);
         setCreateConfirmOpen(true);
@@ -806,48 +902,47 @@ const ManageView = () => {
           scrollbar-color: #d1d5db transparent;
         }
       `}</style>
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print border-t">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-800">PWD Records</h2>
-          <p className="text-sm text-gray-500">Manage, verify, and print official PWD identification cards.</p>
-  
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print mb-6">
+        <div className="flex-1">
+          <h2 className="text-4xl font-black text-gray-900 mb-2">PWD Records</h2>
+          <p className="text-sm text-gray-600 font-medium">Manage, verify, and print official PWD identification cards.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0">
           <button 
             onClick={handleExportCSV}
-            className="flex items-center gap-2 px-5 py-3 bg-white text-gray-700 border border-gray-300 rounded-xl shadow-sm text-sm font-bold hover:bg-gray-50 hover:text-[#800000] transition-all active:scale-95"
+            className="flex items-center gap-2 px-5 py-3 bg-white text-gray-700 border border-gray-300 rounded-xl shadow-md text-sm font-bold hover:bg-gray-50 hover:text-[#800000] hover:shadow-lg hover:border-[#800000] transition-all active:scale-95 duration-200"
           >
             <Download size={18} /> Export CSV
           </button>
           <button 
             onClick={handleAddNew}
-            className="flex items-center gap-2 px-6 py-3 bg-[#800000] text-white text-sm font-bold rounded-xl hover:bg-[#600000] shadow-lg transition-all active:scale-95"
+            className="flex items-center gap-2 px-6 py-3 bg-[#800000] text-white text-sm font-bold rounded-xl hover:bg-[#600000] shadow-lg hover:shadow-xl transition-all active:scale-95 duration-200"
           >
-            <Plus size={18} /> New Record
+            <Plus size={18} /> Add Record
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 flex flex-col md:flex-row gap-4 items-center no-print">
+      <div className="bg-gradient-to-r from-white to-gray-50 rounded-2xl border border-gray-300 shadow-md p-5 flex flex-col md:flex-row gap-4 items-center no-print mb-6">
         <div className="relative flex-grow w-full md:max-w-md">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
           <input 
             type="text" 
             placeholder="Search by name or PWD ID..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/10 focus:border-[#800000] transition-all text-black placeholder-gray-400"
+            className="w-full pl-12 pr-4 py-3 bg-white border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/20 focus:border-[#800000] transition-all text-black placeholder-gray-500 shadow-sm"
           />
         </div>
         <div className="relative">
           <button 
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-all ${
-              showFilters ? 'bg-gray-100 border-[#800000] text-[#800000]' : 'bg-gray-50 border-gray-200 text-gray-600'
+            className={`flex items-center gap-2 px-5 py-3 rounded-xl border font-bold transition-all duration-200 shadow-sm ${
+              showFilters ? 'bg-[#800000]/10 border-[#800000] text-[#800000] shadow-md' : 'bg-white border-gray-300 text-gray-700 hover:border-[#800000]/50'
             }`}
           >
             <Filter size={18} />
-            <span className="text-sm font-bold">Filters</span>
+            <span className="text-sm">Filters</span>
           </button>
 
           {showFilters && (
@@ -872,8 +967,8 @@ const ManageView = () => {
                   >
                     <option value="">All Statuses</option>
                     <option value="Active">Active</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Disease">Disease</option>
+                    <option value="Inactive">Inactive</option>
+                    <option value="Deceased">Deceased</option>
                   </select>
                </div>
                <div className="space-y-1">
@@ -887,8 +982,19 @@ const ManageView = () => {
                     {[1,2,3,4,5,6].map(n => <option key={n} value={n}>Cluster {n}</option>)}
                   </select>
                </div>
+               <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">HOA</label>
+                  <select 
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-black"
+                    value={filterCriteria.hoa}
+                    onChange={(e) => setFilterCriteria({...filterCriteria, hoa: e.target.value})}
+                  >
+                    <option value="">All HOA</option>
+                    {Array.from(new Set(localRecords.map(r => r.hoa || r.hoa_name || r.homeowners).filter(Boolean))).sort().map((hoaName, idx) => <option key={idx} value={hoaName}>{hoaName}</option>)}
+                  </select>
+               </div>
                <button 
-                onClick={() => setFilterCriteria({ status:'', disabilityType:'', clusterGroupNo:'' })}
+                onClick={() => setFilterCriteria({ status:'', disabilityType:'', clusterGroupNo:'', hoa: '' })}
                 className="w-full py-2 text-[10px] font-black uppercase text-red-700 hover:bg-red-50 rounded-lg transition-colors"
                >
                  Clear Filters
@@ -899,33 +1005,31 @@ const ManageView = () => {
       </div>
 
      
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden no-print">
-        <div className="overflow-x-auto">
-          <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="bg-gradient-to-r from-[#800000]/10 to-red-50 border-b-2 border-[#800000]/20 sticky top-0 z-10">
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Tag No</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">PWD ID</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Full Name</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Disability</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Cluster Group</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Age</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">HOA</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] whitespace-nowrap">Status</th>
-                  <th className="px-5 py-4 font-bold text-[#800000] uppercase tracking-wide text-[10px] text-right whitespace-nowrap">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
+           <div className="bg-white rounded-3xl border border-gray-300 shadow-lg no-print overflow-hidden">
+        <div className="w-full overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="bg-gradient-to-r from-[#800000] to-[#600000] border-b-3 border-[#800000]/30 sticky top-0 z-10">
+                <th className="px-4 py-4 font-black text-white uppercase tracking-wide text-[9px]">Tag No</th>
+                <th className="px-4 py-4 font-black text-white uppercase tracking-wide text-[9px]">PWD ID</th>
+                <th className="px-4 py-4 font-black text-white uppercase tracking-wide text-[9px]">Full Name</th>
+                <th className="px-4 py-4 font-black text-white uppercase tracking-wide text-[9px]">Disability</th>
+                <th className="px-4 py-4 font-black text-white uppercase tracking-wide text-[9px]">Cluster</th>
+                <th className="px-4 py-4 font-black text-white uppercase tracking-wide text-[9px]">HOA</th>
+                <th className="px-4 py-4 font-black text-white uppercase tracking-wide text-[9px]">Status</th>
+                <th className="px-4 py-4 font-black text-white uppercase tracking-wide text-[9px] text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 bg-white">
   {currentItems.length > 0 ? currentItems.map((row, idx) => {
     // 1. DEFINE A UNIQUE ID (Safety check for pwd_id vs id)
     const uniqueId = row.pwd_id || row.id;
 
     return (
-      <tr key={uniqueId} className={`transition-all duration-200 hover:bg-gradient-to-r hover:from-[#800000]/5 hover:to-red-50/50 group ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
-        <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-bold text-xs">{row.tagNo || row.tag_no || row.tag_number || <span className="text-gray-400">—</span>}</td>
-        <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">{row.formattedPwdId || row.pwd_id || row.pwdId || row.id || <span className="text-gray-400">—</span>}</td>
-        <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-semibold">
+      <tr key={uniqueId} className={`transition-all duration-200 hover:bg-[#800000]/3 hover:shadow-sm group border-l-4 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} hover:border-l-[#800000]`}>
+        <td className="px-4 py-3 text-gray-900 font-bold text-xs truncate">{row.tagNo || row.tag_no || row.tag_number || <span className="text-gray-400">—</span>}</td>
+        <td className="px-4 py-3 text-gray-900 font-medium text-xs truncate">{row.formattedPwdId || row.pwd_id || row.pwdId || row.id || <span className="text-gray-400">—</span>}</td>
+        <td className="px-4 py-3 text-gray-900 font-semibold text-xs truncate">
           {(() => {
             const firstName = row.firstName || row.firstname || row.first_name || '';
             const middleName = row.middleName || row.middlename || row.middle_name || '';
@@ -934,55 +1038,60 @@ const ManageView = () => {
             return fullName || <span className="text-gray-400">—</span>;
           })()}
         </td>
-        <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">
+        <td className="px-4 py-3 text-gray-900 font-medium text-xs truncate">
           {(() => {
-            const disabilityName = getDisabilityName(row.disability_type || row.disabilityType);
-            const cause = row.disability_cause || row.disabilityCause;
+            const disabilityId = row.disability_type || row.disabilityType;
+            const disabilityName = getDisabilityName(disabilityId);
+            let cause = row.disability_cause || row.disabilityCause;
+            
             if (!disabilityName) return <span className="text-gray-400">—</span>;
-            return cause ? `${disabilityName} - ${cause}` : disabilityName;
+            
+            // If cause is "Congenital" or "Inborn", get the specific condition instead
+            if (cause && (cause.toLowerCase() === 'congenital' || cause.toLowerCase() === 'inborn')) {
+              const conditions = getDisabilityExamples(disabilityId);
+              if (conditions && conditions.length > 0) {
+                cause = conditions[0].condition_name || conditions[0].name || cause;
+              }
+            }
+            
+            // Get short disability name (first word only)
+            const shortName = disabilityName.split(' ')[0];
+            
+            return cause ? `${shortName} - ${cause}` : shortName;
           })()}
         </td>
-        <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">Group {row.cluster_group_no || row.clusterGroupNo || row.cluster || 'N/A'}</td>
-        <td className="px-5 py-4 text-gray-900 whitespace-nowrap text-sm">
-          {(() => {
-            const age = row.age || row.Age;
-            if (age) return age;
-            const birthdate = row.birthdate || row.birth_date || row.dateOfBirth;
-            if (birthdate) return calculateAge(birthdate) || <span className="text-gray-400">—</span>;
-            return <span className="text-gray-400">—</span>;
-          })()}
-        </td>
-        <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs font-medium">{row.hoa || row.hoa_name || row.homeowners || <span className="text-gray-400">—</span>}</td>
-        <td className="px-5 py-4 whitespace-nowrap">
-          <span className={`inline-flex justify-center items-center px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+        <td className="px-4 py-3 text-gray-900 font-medium text-xs truncate">{formatClusterDisplay(row.cluster_group_no || row.clusterGroupNo || row.cluster, row.cluster_group_area || row.clusterGroupArea, row.area_name) || 'N/A'}</td>
+        <td className="px-4 py-3 text-gray-700 text-xs font-medium truncate">{row.hoa || row.hoa_name || row.homeowners || <span className="text-gray-400">—</span>}</td>
+        <td className="px-4 py-3">
+          <span className={`inline-flex justify-center items-center px-3 py-1.5 rounded-full text-[8px] font-black uppercase tracking-wider ${
             (row.registration_status || row.status) === 'Active' 
-              ? 'bg-emerald-100 text-emerald-800 border-emerald-300 shadow-sm' 
-              : (row.registration_status || row.status) === 'Disease'
-              ? 'bg-red-100 text-red-800 border-red-300 shadow-sm'
-              : 'bg-amber-100 text-amber-800 border-amber-300 shadow-sm'
+              ? 'bg-emerald-100 text-emerald-700' 
+              : (row.registration_status || row.status) === 'Deceased'
+              ? 'bg-red-100 text-red-700'
+              : 'bg-amber-100 text-amber-700'
           }`}>
             {row.registration_status || row.status || '—'}
           </span>
         </td>
 
         {/* --- ACTION COLUMN (3 DOTS) --- */}
-        <td className="px-5 py-4 text-right">
-          <div className="flex items-center justify-end gap-1.5">
-            <button onClick={() => handleOpenEdit(row)} className="p-2 text-gray-500 hover:text-[#800000] hover:bg-red-100 rounded-lg transition-all duration-150" title="Edit">
-              <Edit2 size={16} />
+        <td className="px-3 py-3 text-right">
+          <div className="flex items-center justify-end gap-1">
+            <button onClick={() => handleOpenEdit(row)} className="p-1.5 text-gray-500 hover:text-[#800000] hover:bg-red-100 rounded-lg transition-all duration-150" title="Edit">
+              <Edit2 size={14} />
             </button>
-            <button onClick={() => handleDelete(row)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-100 rounded-lg transition-all duration-150" title="Delete">
-              <Trash2 size={16} />
+            <button onClick={() => handleDelete(row)} className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-100 rounded-lg transition-all duration-150" title="Delete">
+              <Trash2 size={14} />
             </button>
             
             <div className="relative inline-block text-left z-10">
               {/* 2. TOGGLE USING UNIQUE ID */}
               <button 
                 onClick={() => setOpenMenuRowId(openMenuRowId === uniqueId ? null : uniqueId)} 
-                className={`p-2 rounded-lg transition-all duration-150 ${openMenuRowId === uniqueId ? 'text-[#800000] bg-red-50' : 'text-gray-500 hover:text-[#800000] hover:bg-gray-100'}`}
+                className={`p-1.5 rounded-lg transition-all duration-150 ${openMenuRowId === uniqueId ? 'text-[#800000] bg-red-50' : 'text-gray-500 hover:text-[#800000] hover:bg-gray-100'}`}
                 title="More"
               >
-                <MoreHorizontal size={16} />
+                <MoreHorizontal size={14} />
               </button>
               
               {/* 3. SHOW ONLY IF IDs MATCH */}
@@ -1020,83 +1129,172 @@ const ManageView = () => {
   )}
 </tbody>
             </table>
-          </div>
         </div>
       </div>
 
+      {/* PAGINATION CONTROLS */}
+      {filteredRows.length > itemsPerPage && (
+        <div className="flex items-center justify-between bg-white rounded-xl border border-gray-300 shadow-sm p-3 no-print">
+          <div className="text-xs font-semibold text-gray-600">
+            Showing <span className="text-[#800000]">{(currentPage - 1) * itemsPerPage + 1}</span>-<span className="text-[#800000]">{Math.min(currentPage * itemsPerPage, filteredRows.length)}</span> of <span className="text-[#800000]">{filteredRows.length}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="p-1.5 text-gray-500 hover:text-[#800000] hover:bg-red-50 rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              title="First Page"
+            >
+              <ChevronsLeft size={16} />
+            </button>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="p-1.5 text-gray-500 hover:text-[#800000] hover:bg-red-50 rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Previous Page"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            
+            <div className="flex items-center gap-0.5">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`w-6 h-6 rounded-md font-bold text-xs transition-all ${
+                    currentPage === page
+                      ? 'bg-[#800000] text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+            </div>
+            
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="p-1.5 text-gray-500 hover:text-[#800000] hover:bg-red-50 rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Next Page"
+            >
+              <ChevronRight size={16} />
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="p-1.5 text-gray-500 hover:text-[#800000] hover:bg-red-50 rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Last Page"
+            >
+              <ChevronsRight size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* FORM MODAL */}
       {showFormModal && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/10 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-[#EBEBEB] rounded-3xl shadow-2xl w-full max-w-5xl overflow-hidden my-8 border border-gray-700">
-            <div className="px-8 py-6 bg-[#800000] text-white flex items-center justify-between sticky top-0 z-10">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/50 backdrop-blur-md overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl overflow-hidden my-8 border border-gray-200">
+            <div className="px-8 py-6 bg-gradient-to-r from-[#800000] to-[#600000] text-white flex items-center justify-between sticky top-0 z-10">
               <div>
-                <h3 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
+                <h3 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
                   {editingRecord ? <Edit2 size={24} /> : <Plus size={24} />}
                   {editingRecord ? 'Update PWD Profile' : 'New PWD Member Registration'}
                 </h3>
+                <p className="text-xs opacity-90 font-semibold tracking-wider mt-1">Fill in all required fields marked with *</p>
               </div>
               <button onClick={() => setShowFormModal(false)} className="p-2 hover:bg-white/20 rounded-full transition-colors"><X size={24} /></button>
             </div>
             
-            <form className="p-10 space-y-10 max-h-[75vh] overflow-y-auto" onSubmit={handleSaveRecord}>
+            <form className="p-10 space-y-8 max-h-[75vh] overflow-y-auto bg-gray-50" onSubmit={handleSaveRecord}>
               {/* Personal Identification Section */}
-              <div className="space-y-6">
-                <div className="flex items-center gap-3 border-b-3 border-gray-500 pb-3">
-                  <div className="w-8 h-8 bg-red-50 rounded-lg flex items-center justify-center text-[#800000]"><User size={18} /></div>
+              <div className="space-y-5 bg-white p-8 rounded-2xl border border-gray-200">
+                <div className="flex items-center gap-3 border-b-3 border-[#800000] pb-3">
+                  <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center text-[#800000]"><User size={20} /></div>
                   <h4 className="font-black text-gray-800 uppercase text-sm tracking-widest">Personal Identification</h4>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">First Name *</label>
-                    <input name="firstName" type="text" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.firstName || editingRecord?.firstname || ''} required />
+                    <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest">First Name *</label>
+                    <input name="firstName" type="text" className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-black focus:outline-none focus:ring-2 focus:ring-[#800000]/20 focus:border-[#800000] transition-all" defaultValue={editingRecord?.firstName || editingRecord?.firstname || ''} required />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Middle Name</label>
-                    <input name="middleName" type="text" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.middleName || editingRecord?.middlename || ''} />
+                    <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Middle Name</label>
+                    <input name="middleName" type="text" className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-black focus:outline-none focus:ring-2 focus:ring-[#800000]/20 focus:border-[#800000] transition-all" defaultValue={editingRecord?.middleName || editingRecord?.middlename || ''} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Last Name *</label>
-                    <input name="lastName" type="text" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.lastName || editingRecord?.lastname || ''} required />
+                    <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Last Name *</label>
+                    <input name="lastName" type="text" className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-black focus:outline-none focus:ring-2 focus:ring-[#800000]/20 focus:border-[#800000] transition-all" defaultValue={editingRecord?.lastName || editingRecord?.lastname || ''} required />
                   </div>
-                                  {/* SUFFIX FIX */}
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Suffix</label>
-                    <input name="suffix" type="text" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" 
-                      defaultValue={editingRecord?.suffix || ''} 
-                    />
+                    <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Suffix</label>
+                    <input name="suffix" type="text" className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-black focus:outline-none focus:ring-2 focus:ring-[#800000]/20 focus:border-[#800000] transition-all" defaultValue={editingRecord?.suffix || ''} />
                   </div>
-
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Sex</label>
-                    <select name="sex" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" 
-                      defaultValue={editingRecord?.sex || 'Male'}
-                    >
+                    <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Sex</label>
+                    <select name="sex" className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-black focus:outline-none focus:ring-2 focus:ring-[#800000]/20 focus:border-[#800000] transition-all" defaultValue={editingRecord?.sex || 'Male'}>
                       <option>Male</option>
                       <option>Female</option>
                     </select>
                   </div>
-
-                  {/* BIRTHDATE FIX */}
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Birthdate *</label>
-                    <input name="birthdate" type="date" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" 
-                      defaultValue={formatDateForInput(editingRecord?.birthdate)} required 
+                    <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Birthdate *</label>
+                    <input name="birthdate" type="date" className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-black focus:outline-none focus:ring-2 focus:ring-[#800000]/20 focus:border-[#800000] transition-all" defaultValue={formatDateForInput(editingRecord?.birthdate)} required />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Contact Number: <span className="text-gray-600">*</span></label>
+                    <input 
+                      name="contactNo" 
+                      type="tel" 
+                      className={`w-full px-4 py-3 bg-white border rounded-lg text-sm font-semibold text-black focus:outline-none focus:ring-2 focus:border-[#800000] transition-all ${
+                        contactNumberError ? 'border-red-500 focus:ring-red-500/20' : 'border-gray-300 focus:ring-[#800000]/20'
+                      }`}
+                      defaultValue={editingRecord?.contactNo || editingRecord?.contact_no || ''} 
+                      onBlur={(e) => !editingRecord && checkForDuplicates(e.target.value, '')}
+                    />
+                    {contactNumberError && <p className="text-xs text-red-600 font-semibold">⚠️ {contactNumberError}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Tag No. <span className="text-gray-600">*</span></label>
+                    <input 
+                      name="tagNo" 
+                      type="text" 
+                      className={`w-full px-4 py-3 bg-white border rounded-lg text-sm font-semibold text-black focus:outline-none focus:ring-2 focus:border-[#800000] transition-all ${
+                        tagNumberError ? 'border-red-500 focus:ring-red-500/20' : 'border-gray-300 focus:ring-[#800000]/20'
+                      }`}
+                      defaultValue={editingRecord?.tagNo || editingRecord?.tag_no || ''} 
+                      placeholder="e.g., 001, 002, 051"
+                      onBlur={(e) => !editingRecord && checkForDuplicates('', e.target.value)}
+                    />
+                    {tagNumberError && <p className="text-xs text-red-600 font-semibold">⚠️ {tagNumberError}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest">PWD ID <span className="text-gray-600">*</span></label>
+                    <input 
+                      name="pwdId" 
+                      type="text" 
+                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-black focus:outline-none focus:ring-2 focus:ring-[#800000]/20 focus:border-[#800000] transition-all" 
+                      defaultValue={editingRecord?.pwdId || editingRecord?.pwd_id || editingRecord?.formattedPwdId || ''} 
+                      placeholder="e.g., PWD-MRK-CL01-2026-0001"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Contact Number</label>
-                    <input name="contactNo" type="tel" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.contactNo || editingRecord?.contact_no || ''} />
+                    <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Cluster Group</label>
+                    <select name="clusterGroupNo" className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-black focus:outline-none focus:ring-2 focus:ring-[#800000]/20 focus:border-[#800000] transition-all" defaultValue={editingRecord?.clusterGroupNo || editingRecord?.cluster_group_no || '1'}>
+                      {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>Cluster {n}</option>)}
+                    </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Tag No.</label>
-                    <input name="tagNo" type="text" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.tagNo || editingRecord?.tag_no || ''} placeholder="e.g., 001, 002, 051" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Cluster Group</label>
+                    <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Area <span className="text-gray-600">*</span></label>
                     <div className="flex gap-2">
-                      <select name="clusterGroupNo" className="flex-1 px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.clusterGroupNo || editingRecord?.cluster_group_no || '1'}>
-                        {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>Cluster {n}</option>)}
-                      </select>
+                      <input 
+                        type="text" 
+                        value={clusterGroupArea}
+                        readOnly
+                        className="flex-1 px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg text-sm font-semibold text-black focus:outline-none cursor-not-allowed transition-all"
+                        placeholder="Select from areas"
+                      />
                       <button 
                         type="button"
                         onClick={() => {
@@ -1104,7 +1302,7 @@ const ManageView = () => {
                           setSelectedCluster(parseInt(clusterValue));
                           setShowClusterModal(true);
                         }}
-                        className="px-4 py-3 bg-[#800000] text-white rounded-xl font-bold text-sm hover:bg-[#600000] transition-colors"
+                        className="px-5 py-3 bg-[#800000] text-white rounded-lg font-bold text-sm hover:bg-[#600000] transition-colors shadow-md"
                       >
                         View Areas
                       </button>
@@ -1114,10 +1312,10 @@ const ManageView = () => {
               </div>
 
               {/* Disability Information Section */}
-              <div className="space-y-6">
-                <div className="flex items-center gap-3 border-b-3 border-gray-500 pb-3">
-                  <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center text-purple-800"><HeartPulse size={18} /></div>
-                  <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Disability Information</h4>
+              <div className="space-y-5 bg-white p-8 rounded-2xl border border-gray-200">
+                <div className="flex items-center gap-3 border-b-3 border-purple-500 pb-3">
+                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center text-purple-800"><HeartPulse size={20} /></div>
+                  <h4 className="font-black text-gray-800 uppercase text-sm tracking-widest">Disability Information</h4>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-4">
@@ -1140,8 +1338,8 @@ const ManageView = () => {
                         defaultValue={editingRecord?.status || editingRecord?.registration_status || 'Active'}
                       >
                         <option>Active</option>
-                        <option>Pending</option>
-                        <option>Disease</option>
+                        <option value="Inactive">Inactive</option>
+                        <option>Deceased</option>
                       </select>
                     </div>
                   </div>
@@ -1186,7 +1384,7 @@ const ManageView = () => {
                               {examples.map((example, idx) => (
                                 <option key={idx} value={example}>{example}</option>
                               ))}
-                              <option value="custom">+ Enter Custom Condition</option>
+                              <option value="custom">+ Enter Condition (Not in the choices)</option>
                             </select>
                           </div>
                         ) : (
@@ -1214,40 +1412,36 @@ const ManageView = () => {
                 </div>
               </div>
 
-              {/* RESIDENTIAL & SUPPORT SECTION (Integrated from requested layout) */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-3 border-b-3 border-gray-500 pb-3">
-                <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center text-green-700">
-                  <MapPin size={18} />
+              {/* RESIDENTIAL & SUPPORT SECTION */}
+            <div className="space-y-5 bg-white p-8 rounded-2xl border border-gray-200">
+              <div className="flex items-center gap-3 border-b-3 border-green-500 pb-3">
+                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-green-700">
+                  <MapPin size={20} />
                 </div>
-                <h4 className="font-black text-[#1F2937] uppercase text-sm tracking-widest">Residential & Support</h4>
+                <h4 className="font-black text-gray-800 uppercase text-sm tracking-widest">Residential & Support</h4>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Left Side: Address Fields */}
-                <div className="space-y-6">
+                <div className="space-y-5">
                   
-                  {/* NEW: Split HOA and Barangay into two columns */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Homeowners Association</label>
-                      <input 
-                        name="hoa" 
-                        type="text" 
-                        className="w-full px-4 py-4 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10" 
-                        defaultValue={editingRecord?.hoa || ''} 
-                        placeholder="HOA Name"
-                      />
-                    </div>
-        
-                  </div>
-
+                  {/* HOA Field */}
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Full Address *</label>
+                    <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Homeowners Association</label>
+                    <input 
+                      name="hoa" 
+                      type="text" 
+                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-black focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all" 
+                      defaultValue={editingRecord?.hoa || ''} 
+                      placeholder="HOA Name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Full Address *</label>
                     <textarea 
                       name="address" 
                       rows={4}
-                      className="w-full px-4 py-4 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10 resize-none" 
+                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-black focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all resize-none" 
                       defaultValue={editingRecord?.address || ''}
                       placeholder="# House No., Street Name"
                       required
@@ -1255,23 +1449,24 @@ const ManageView = () => {
                   </div>
                 </div>
 
-                {/* Right Side: Guardian Box (F9FAFB background) */}
-                <div className="bg-[#F9FAFB] p-8 rounded-[2rem] border-2 border-gray-400 flex flex-col gap-6 h-full">
+                {/* Right Side: Guardian Box */}
+                <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-8 rounded-2xl border-2 border-green-200 flex flex-col gap-5">
+                  <h5 className="font-black text-gray-800 uppercase text-xs tracking-widest text-green-700 border-b border-green-200 pb-2">Emergency Contact</h5>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Guardian Name</label>
+                    <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Contact Name:</label>
                     <input 
                       name="guardian" 
                       type="text" 
-                      className="w-full px-4 py-4 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10" 
+                      className="w-full px-4 py-3 bg-white border border-green-300 rounded-lg text-sm font-semibold text-black focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all" 
                       defaultValue={editingRecord?.guardian || editingRecord?.guardian_name || ''} 
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Guardian Contact</label>
+                    <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Contact:</label>
                     <input 
                       name="guardianContact" 
                       type="tel" 
-                      className="w-full px-4 py-4 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10" 
+                      className="w-full px-4 py-3 bg-white border border-green-300 rounded-lg text-sm font-semibold text-black focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all" 
                       defaultValue={editingRecord?.guardianContact || editingRecord?.guardian_contact || ''} 
                     />
                   </div>
@@ -1280,19 +1475,19 @@ const ManageView = () => {
             </div>
 
               {/* FORM FOOTER ACTIONS */}
-              <div className="flex items-center justify-end gap-12 pt-10 border-t-3 border-gray-500">
+              <div className="flex items-center justify-end gap-6 pt-6 border-t-2 border-gray-200 bg-white p-8 rounded-2xl">
                 <button 
                   type="button" 
                   onClick={() => setShowFormModal(false)}
                   disabled={isLoading}
-                  className="text-gray-400 font-black text-xs uppercase tracking-widest hover:text-red-600 transition-colors disabled:opacity-50"
+                  className="px-6 py-2.5 text-gray-600 font-bold text-sm uppercase tracking-widest hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                 >
-                  Discard
+                  Cancel
                 </button>
                 <button 
                   type="submit" 
                   disabled={isLoading}
-                  className="px-8 py-4 bg-[#800000] text-white text-sm font-black rounded-2xl hover:bg-[#600000] shadow-[0_10px_20px_rgba(128,0,0,0.2)] flex items-center gap-3 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-8 py-3 bg-gradient-to-r from-[#800000] to-[#600000] text-white text-sm font-bold rounded-lg hover:shadow-lg shadow-md flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wide"
                 >
                   <FileText size={18} /> {isLoading ? 'Saving...' : (editingRecord ? 'Update Record' : 'Register Citizen')}
                 </button>
@@ -1339,7 +1534,7 @@ const ManageView = () => {
                   <div className="replica-body">
                     <h2 className="replica-title">BARANGAY NANGKA PWD MEMBER</h2>
                     <div className="replica-top-fields">
-                       <p>CLUSTER: <span className="underline-field">{selectedRecord.clusterGroupNo || selectedRecord.cluster_group_no || '______'}</span></p>
+                       <p>CLUSTER: <span className="underline-field">{formatClusterDisplay(selectedRecord.clusterGroupNo || selectedRecord.cluster_group_no, selectedRecord.clusterGroupArea || selectedRecord.cluster_group_area) || '______'}</span></p>
                        <p>TAG NO: <span className="underline-field">{selectedRecord.tagNo || selectedRecord.tag_no || '______'}</span></p>
                     </div>
                     <div className="replica-main-content">
@@ -1396,8 +1591,8 @@ const ManageView = () => {
                       <div className="emergency-fields-group grid grid-cols-1 gap-3">
                         <FieldRow label="HOA:" value={selectedRecord.hoa || selectedRecord.hoa_name || selectedRecord.homeowners || ''} />
                         <FieldRow label="FULL ADDRESS:" value={selectedRecord.address || selectedRecord.full_address || selectedRecord.ADDRESS || ''} />
-                        <FieldRow label="GUARDIAN NAME:" value={selectedRecord.guardian || selectedRecord.guardian_name || selectedRecord.emergencyContact || selectedRecord.guardianName || ''} />
-                        <FieldRow label="GUARDIAN CONTACT:" value={selectedRecord.guardianContact || selectedRecord.guardian_contact || selectedRecord.emergencyNumber || selectedRecord.guardian_contact_no || ''} />
+                        <FieldRow label="CONTACT NAME:" value={selectedRecord.guardian || selectedRecord.guardian_name || selectedRecord.emergencyContact || selectedRecord.guardianName || ''} />
+                        <FieldRow label="CONTACT :" value={selectedRecord.guardianContact || selectedRecord.guardian_contact || selectedRecord.emergencyNumber || selectedRecord.guardian_contact_no || ''} />
                       </div>
 
                       <div className="administration-section">
@@ -1494,7 +1689,7 @@ const ManageView = () => {
                   <div className="space-y-4">
                     <InfoItem label="Classification" value={getDisabilityName(viewRecord.disabilityType) || 'N/A'} />
                     <InfoItem label="Cause" value={viewRecord.disabilityCause || 'N/A'} />
-                    <InfoItem label="Cluster Assignment" value={viewRecord.clusterGroupNo ? `Cluster ${viewRecord.clusterGroupNo}` : 'N/A'} />
+                    <InfoItem label="Cluster Assignment" value={getClusterAreaDisplay(viewRecord.clusterGroupNo, viewRecord.clusterGroupArea, viewRecord.area_name) || 'N/A'} />
                     <InfoItem label="Status" value={viewRecord.status || 'Active'} />
                   </div>
                 </section>
@@ -1503,8 +1698,8 @@ const ManageView = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <InfoItem label="HOA" value={viewRecord.hoa || 'N/A'} />
                     <InfoItem label="Full Address" value={viewRecord.address || 'N/A'} />
-                    <InfoItem label="Guardian Name" value={viewRecord.guardian || 'N/A'} />
-                    <InfoItem label="Guardian Contact" value={viewRecord.guardianContact || 'N/A'} />
+                    <InfoItem label="Contact Name" value={viewRecord.guardian || 'N/A'} />
+                    <InfoItem label="Contact" value={viewRecord.guardianContact || 'N/A'} />
                   </div>
                 </section>
               </div>
@@ -1521,21 +1716,29 @@ const ManageView = () => {
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden">
             <div className="px-8 py-6 bg-[#800000] text-white flex items-center justify-between">
-              <h3 className="text-xl font-black uppercase tracking-tight">Clustered Group {selectedCluster}</h3>
+              <h3 className="text-xl font-black uppercase tracking-tight">Select Area - Cluster {selectedCluster}</h3>
               <button onClick={() => setShowClusterModal(false)} className="p-2 hover:bg-white/20 rounded-full transition"><X size={24} /></button>
             </div>
             <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
               {clusterData[selectedCluster] && clusterData[selectedCluster].length > 0 ? (
                 <div className="space-y-4">
                   {clusterData[selectedCluster].map((area, idx) => (
-                    <div key={idx} className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors">
-                      <div className="w-10 h-10 bg-[#FFFFF] text-black rounded-lg flex items-center justify-center font-black text-sm flex-shrink-0">
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setClusterGroupArea(area.letter);
+                        setShowClusterModal(false);
+                      }}
+                      className="w-full flex items-start gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200 hover:bg-[#800000] hover:text-white hover:border-[#800000] transition-all cursor-pointer group"
+                    >
+                      <div className="w-10 h-10 bg-white text-black rounded-lg flex items-center justify-center font-black text-sm flex-shrink-0 group-hover:bg-white group-hover:text-[#800000]">
                         {area.letter}
                       </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-bold text-gray-800">{area.name}</p>
+                      <div className="flex-1 text-left">
+                        <p className="text-sm font-bold text-black group-hover:text-white">{area.name}</p>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               ) : (
@@ -1598,13 +1801,13 @@ const ManageView = () => {
         .field-row label { font-size: 10px; font-weight: 700; color: #000; min-width: 110px; flex-shrink: 0; }
         .field-row span { font-size: 11px; font-weight: 400; color: #000 !important; border-bottom: none; flex: 1; min-height: 16px; line-height: 1.2; text-transform: uppercase; word-break: break-word; white-space: normal; }
         
-        .administration-section { margin-top: 30px; display: flex; flex-direction: column; align-items: center; padding-bottom: 6px; position: relative; width: 100%; }
+        .administration-section { margin-top: 45px; display: flex; flex-direction: column; align-items: center; padding-bottom: 6px; position: relative; width: 100%; }
         .admin-label { font-size: 8px; font-weight: 700; color: #000; margin-bottom: 2px; }
         .admin-signature-line { width: 240px; height: 2px; background: #000; margin-bottom: 4px; }
         .admin-name { font-size: 12px; font-weight: 900; color: #000; margin-top: 2px; }
 
         /* QR code on back side */
-        .back-qr { position: absolute; right: -20px; top: 15%; transform: translateY(-50%); width: 92px; height: 92px; background: white; padding: 6px; border: 2px solid #000; box-sizing: border-box; display:flex; align-items:center; justify-content:center; z-index:6; }
+        .back-qr { position: absolute; right: -20px; top: -20%; transform: translateY(-50%); width: 92px; height: 92px; background: white; padding: 6px; border: 2px solid #000; box-sizing: border-box; display:flex; align-items:center; justify-content:center; z-index:6; }
         .back-qr img { width: 100%; height: 100%; object-fit: contain; display:block; }
 
         @media print {

@@ -53,6 +53,8 @@ const VerifyIDView = () => {
       causeType: d.causeType || d.cause_type || d.Cause || '',
       causeSpecific: d.causeSpecific || d.cause_specific || '',
       clusterGroupNo: d.clusterGroupNo || d.cluster_group_no || d.clusterAssignment || d.Cluster || '',
+      clusterGroupArea: d.clusterGroupArea || d.cluster_group_area || '',
+      area_name: d.area_name || '',
       status: d.status || d.Status || d.registration_status || '',
       hoa: d.hoa || d.HOA || d.homeownersAssociation || '',
       address: d.address || d.full_address || d.Address || d.registeredAddress || '',
@@ -264,7 +266,6 @@ const VerifyIDView = () => {
           Official ID Verification
         </h2>
         <p className="text-gray-500 max-w-lg mx-auto">Verify the authenticity of Barangay Nangka PWD Membership IDs through our secure system.</p>
-        <p className="text-gray-500 max-w-lg mx-auto text-red-500 font-bold">Gawan na ng backend itong verify ID, para ma integrate sa database natin!</p>
       </div>
 
       <div className="bg-gray-100 p-1 rounded-xl flex max-w-md mx-auto">
@@ -478,7 +479,7 @@ const VerifyIDView = () => {
                   <div className="space-y-4">
                     <InfoItem label="Classification" value={result.disabilityType || 'N/A'} />
                     <InfoItem label="Cause" value={result.disabilityCause || (result.causeType ? `${result.causeType} - ${result.causeSpecific || ''}` : 'N/A')} />
-                    <InfoItem label="Cluster Assignment" value={result.clusterGroupNo ? `Cluster ${result.clusterGroupNo}` : 'N/A'} />
+                    <InfoItem label="Cluster Assignment" value={result.clusterGroupNo ? (result.clusterGroupArea ? (result.area_name ? `Cluster ${result.clusterGroupNo} - ${result.clusterGroupArea} - ${result.area_name}` : `Cluster ${result.clusterGroupNo} - ${result.clusterGroupArea}`) : `Cluster ${result.clusterGroupNo}`) : 'N/A'} />
                     <InfoItem label="Status" value={result.status || 'Active'} />
                   </div>
                 </section>

@@ -200,13 +200,14 @@ CREATE TABLE `nangka_pwd_user` (
   `tag_no` varchar(50) DEFAULT NULL COMMENT 'Manual tag number for PWD ID',
   `disability_type` int(11) DEFAULT NULL COMMENT 'Foreign key reference to disability_types table',
   `disability_cause` varchar(255) DEFAULT NULL COMMENT 'Cause of disability (e.g., Congenital - Birth Defect)',
-  `registration_status` enum('Active','Pending','Inactive','Disease') DEFAULT 'Active' COMMENT 'PWD registration status',
+  `registration_status` enum('Active','Pending','Deceased') DEFAULT 'Active',
   `guardian_name` varchar(255) DEFAULT NULL,
   `guardian_contact` varchar(20) DEFAULT NULL,
   `registration_date` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `is_active` tinyint(1) DEFAULT 1,
-  `cluster_group_no` int(11) DEFAULT 1
+  `cluster_group_no` int(11) DEFAULT 1,
+  `cluster_group_area` char(1) DEFAULT NULL COMMENT 'Area letter (A, B, C, or D)'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
