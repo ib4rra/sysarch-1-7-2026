@@ -20,6 +20,12 @@ const SettingsView = () => {
   const [users, setUsers] = useState([]); 
   const [auditLogs, setAuditLogs] = useState([]);
   const [logsPage, setLogsPage] = useState(1);
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [showEditUserModal, setShowEditUserModal] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [newUser, setNewUser] = useState({ username: '', fullname: '', role: 'Admin', password: '' });
+  const [editingUser, setEditingUser] = useState(null);
+  const [deletingUser, setDeletingUser] = useState(null);
 
   // ==========================================
   // API FETCHING
@@ -105,6 +111,92 @@ const SettingsView = () => {
   const nextLogPage = () => setLogsPage(prev => prev + 1);
   const prevLogPage = () => setLogsPage(prev => Math.max(1, prev - 1));
 
+  const handleAddUser = async () => {
+    if (!newUser.username || !newUser.fullname || !newUser.password) {
+      setMsg({ type: 'error', text: 'Please fill in all required fields' });
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await settingsAPI.createStaff(newUser);
+      if (res.success) {
+        setMsg({ type: 'success', text: 'User created successfully!' });
+        setUsers([...users, res.data]);
+        setShowAddUserModal(false);
+        setNewUser({ username: '', fullname: '', role: 'Admin', password: '' });
+      } else {
+        setMsg({ type: 'error', text: res.message || 'Failed to create user' });
+      }
+    } catch (err) {
+      setMsg({ type: 'error', text: err.message || 'Failed to create user' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditUser = (user) => {
+    setEditingUser({ ...user });
+    setShowEditUserModal(true);
+  };
+
+  const handleUpdateUser = async () => {
+    if (!editingUser.username || !editingUser.fullname) {
+      setMsg({ type: 'error', text: 'Please fill in all required fields' });
+      return;
+    }
+    setLoading(true);
+    try {
+      console.log('Updating user:', editingUser);
+      const res = await settingsAPI.updateStaff(editingUser.id, editingUser);
+      console.log('Update response:', res);
+      
+      if (res.success) {
+        setMsg({ type: 'success', text: 'User updated successfully!' });
+        setUsers(users.map(u => u.id === editingUser.id ? editingUser : u));
+        setShowEditUserModal(false);
+        setEditingUser(null);
+      } else {
+        setMsg({ type: 'error', text: res.message || 'Failed to update user' });
+      }
+    } catch (err) {
+      console.error('Update user error details:', err);
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to update user';
+      setMsg({ type: 'error', text: errorMsg });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteUser = (user) => {
+    setDeletingUser(user);
+    setShowDeleteConfirmModal(true);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!deletingUser) return;
+    setLoading(true);
+    try {
+      console.log('Deleting user:', deletingUser.id);
+      const res = await settingsAPI.deleteStaff(deletingUser.id);
+      console.log('Delete response:', res);
+      
+      if (res.success) {
+        setMsg({ type: 'success', text: 'User deleted successfully!' });
+        setUsers(users.filter(u => u.id !== deletingUser.id));
+        setShowDeleteConfirmModal(false);
+        setDeletingUser(null);
+      } else {
+        setMsg({ type: 'error', text: res.message || 'Failed to delete user' });
+      }
+    } catch (err) {
+      console.error('Delete user error details:', err);
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to delete user';
+      setMsg({ type: 'error', text: errorMsg });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ==========================================
   // RENDER HELPERS (Updated with Loading States)
   // ==========================================
@@ -158,7 +250,7 @@ const SettingsView = () => {
                 </h3>
                 <p className="text-sm text-gray-500 mt-1">Manage system access for Barangay officials.</p>
               </div>
-              <button className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-lg hover:bg-black flex items-center gap-2">
+              <button onClick={() => setShowAddUserModal(true)} className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-lg hover:bg-black flex items-center gap-2">
                 <Plus size={14} /> Add New User
               </button>
             </div>
@@ -199,8 +291,19 @@ const SettingsView = () => {
                             </span>
                         </td>
                         <td className="px-6 py-4 text-right space-x-2">
-                          <button className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded">
+                          <button 
+                            onClick={() => handleEditUser(user)}
+                            className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            title="Edit"
+                          >
                             <Edit2 size={16} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteUser(user)}
+                            className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 size={16} />
                           </button>
                         </td>
                       </tr>
@@ -434,8 +537,187 @@ const SettingsView = () => {
           {renderContent()}
         </div>
       </div>
+
+      {/* Edit User Modal */}
+      {showEditUserModal && editingUser && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-black text-gray-800 uppercase tracking-tight">Edit User</h3>
+              <button onClick={() => {setShowEditUserModal(false); setEditingUser(null);}} className="p-2 hover:bg-gray-100 rounded-full">
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-black text-gray-600 uppercase tracking-widest">Username *</label>
+                <input
+                  type="text"
+                  value={editingUser.username}
+                  onChange={(e) => setEditingUser({...editingUser, username: e.target.value})}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/20 focus:border-[#800000] transition-all text-black bg-white"
+                  placeholder="johndoe"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-black text-gray-600 uppercase tracking-widest">Full Name *</label>
+                <input
+                  type="text"
+                  value={editingUser.fullname || editingUser.name || ''}
+                  onChange={(e) => setEditingUser({...editingUser, fullname: e.target.value, name: e.target.value})}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/20 focus:border-[#800000] transition-all text-black bg-white"
+                  placeholder="John Doe"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-black text-gray-600 uppercase tracking-widest">Role</label>
+                <select
+                  value={editingUser.role}
+                  onChange={(e) => setEditingUser({...editingUser, role: e.target.value})}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/20 focus:border-[#800000] transition-all text-black bg-white"
+                >
+                  <option value="Admin">Admin</option>
+                  <option value="Super Admin">Super Admin</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => {setShowEditUserModal(false); setEditingUser(null);}}
+                className="flex-1 px-4 py-3 border border-gray-200 text-gray-600 font-bold rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateUser}
+                disabled={loading}
+                className="flex-1 px-4 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {loading ? <Loader className="animate-spin" size={16} /> : <Edit2 size={16} />}
+                Update User
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirmModal && deletingUser && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-6">
+            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mx-auto">
+              <Trash2 size={24} className="text-red-600" />
+            </div>
+            <div className="text-center">
+              <h3 className="text-lg font-black text-gray-800 uppercase tracking-tight">Delete User</h3>
+              <p className="text-sm text-gray-600 mt-2">Are you sure you want to delete <strong>{deletingUser.name || deletingUser.fullname}</strong>? This action cannot be undone.</p>
+            </div>
+
+            <div className="flex gap-3 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => {setShowDeleteConfirmModal(false); setDeletingUser(null);}}
+                disabled={loading}
+                className="flex-1 px-4 py-3 border border-gray-200 text-gray-600 font-bold rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteUser}
+                disabled={loading}
+                className="flex-1 px-4 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {loading ? <Loader className="animate-spin" size={16} /> : <Trash2 size={16} />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add User Modal */}
+      {showAddUserModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-black text-gray-800 uppercase tracking-tight">Add New User</h3>
+              <button onClick={() => setShowAddUserModal(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-black text-gray-600 uppercase tracking-widest">Username *</label>
+                <input
+                  type="text"
+                  value={newUser.username}
+                  onChange={(e) => setNewUser({...newUser, username: e.target.value})}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/20 focus:border-[#800000] transition-all text-black bg-white"
+                  placeholder="johndoe"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-black text-gray-600 uppercase tracking-widest">Full Name *</label>
+                <input
+                  type="text"
+                  value={newUser.fullname}
+                  onChange={(e) => setNewUser({...newUser, fullname: e.target.value})}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/20 focus:border-[#800000] transition-all text-black bg-white"
+                  placeholder="John Doe"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-black text-gray-600 uppercase tracking-widest">Password *</label>
+                <input
+                  type="password"
+                  value={newUser.password}
+                  onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/20 focus:border-[#800000] transition-all text-black bg-white"
+                  placeholder="••••••••"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-black text-gray-600 uppercase tracking-widest">Role</label>
+                <select
+                  value={newUser.role}
+                  onChange={(e) => setNewUser({...newUser, role: e.target.value})}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/20 focus:border-[#800000] transition-all text-black bg-white"
+                >
+                  <option value="Admin">Admin</option>
+                  <option value="Super Admin">Super Admin</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => setShowAddUserModal(false)}
+                className="flex-1 px-4 py-3 border border-gray-200 text-gray-600 font-bold rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddUser}
+                disabled={loading}
+                className="flex-1 px-4 py-3 bg-[#800000] text-white font-bold rounded-lg hover:bg-[#600000] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {loading ? <Loader className="animate-spin" size={16} /> : <Plus size={16} />}
+                Create User
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default SettingsView;
+

@@ -15,6 +15,7 @@ const JWT_EXPIRY = process.env.JWT_EXPIRY || '7d';
  * @route POST /auth/login
  * @access Public
  */
+
 export const login = async (req, res) => {
   try {
     const { username, password } = req.body;

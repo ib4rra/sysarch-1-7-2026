@@ -254,13 +254,23 @@ const HomeView = () => {
   };
 
   const handleEdit = (announcement) => {
+    // Format time values to HH:MM format for input type="time"
+    const formatTimeForInput = (timeStr) => {
+      if (!timeStr) return '';
+      // If it's already in HH:MM format, return as is
+      if (timeStr.length === 5 && timeStr.includes(':')) return timeStr;
+      // If it's in HH:MM:SS format, truncate to HH:MM
+      if (timeStr.length >= 5) return timeStr.substring(0, 5);
+      return '';
+    };
+
     setNewNotice({
       title: announcement.title,
       notice_type: announcement.type,
       content: announcement.desc,
       event_date: announcement.event_date || '',
-      start_time: announcement.start_time || '',
-      end_time: announcement.end_time || ''
+      start_time: formatTimeForInput(announcement.start_time),
+      end_time: formatTimeForInput(announcement.end_time)
     });
     setEditingId(announcement.id);
     setIsEditMode(true);

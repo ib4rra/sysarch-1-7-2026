@@ -50,6 +50,57 @@ export const getPwdID = async (req, res) => {
     });
   }
 };
+
+/**
+ * Check for duplicate contact_no or tag_no
+ */
+export const checkDuplicate = async (req, res) => {
+  try {
+    const { contactNumber, tagNo } = req.query;
+
+    const duplicates = {
+      contactNumberExists: false,
+      tagNoExists: false,
+      contactNumberMessage: '',
+      tagNoMessage: ''
+    };
+
+    // Check contact number
+    if (contactNumber) {
+      const [existingContact] = await db.query(
+        'SELECT pwd_id FROM Nangka_PWD_user WHERE contact_no = ? LIMIT 1',
+        [contactNumber]
+      );
+      if (existingContact.length > 0) {
+        duplicates.contactNumberExists = true;
+        duplicates.contactNumberMessage = `Contact number "${contactNumber}" is already registered`;
+      }
+    }
+
+    // Check tag number
+    if (tagNo) {
+      const [existingTag] = await db.query(
+        'SELECT pwd_id FROM Nangka_PWD_user WHERE tag_no = ? LIMIT 1',
+        [tagNo]
+      );
+      if (existingTag.length > 0) {
+        duplicates.tagNoExists = true;
+        duplicates.tagNoMessage = `Tag number "${tagNo}" is already in use`;
+      }
+    }
+
+    res.json({
+      success: true,
+      data: duplicates
+    });
+  } catch (err) {
+    console.error('Error checking duplicates:', err);
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to check duplicates'
+    });
+  }
+};
   
 
 
@@ -325,6 +376,7 @@ export const createRegistrant = async (req, res) => {
       barangay,
       contactNumber,
       tagNo,
+      pwdId,
       emergencyContact,
       emergencyNumber,
       disabilityType,
@@ -373,11 +425,8 @@ export const createRegistrant = async (req, res) => {
 
     // After creating the registrant, create PWD user login credentials
     try {
-      // Convert cluster number to integer (form data comes as string)
-      const clusterNum = parseInt(clusterGroupNo) || 1;
-      
-      // Generate formatted PWD_ID (e.g., PWD-MRK-CL01-2026-0001)
-      const formattedPwdId = await generatePwdId(clusterNum);
+      // Use provided pwdId or generate one if not provided
+      const formattedPwdId = pwdId || await generatePwdId(parseInt(clusterGroupNo) || 1);
       
       // Hash surname as password
       const hashedPassword = await bcrypt.hash(lastName, 10);

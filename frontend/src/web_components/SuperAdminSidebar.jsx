@@ -1,12 +1,12 @@
 import React from 'react';
-import { Shield, Users, Settings, LogOut, Lock, Database, Home } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, LogOut, Lock, Database, Home } from 'lucide-react';
 
 const SuperAdminSidebar = ({ activeTab, setActiveTab, onLogout }) => {
   const menuItems = [
     { id: 'home', label: 'Home', icon: Home },
-    { id: 'dashboard', label: 'System Overview', icon: Shield },
-    { id: 'manage', label: 'Manage PWD', icon: Users },
-    { id: 'settings', label: 'System Settings', icon: Settings },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'manage', label: 'Manage', icon: Database },
+    { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   return (

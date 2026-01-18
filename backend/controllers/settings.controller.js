@@ -1,5 +1,6 @@
 import * as SystemModel from '../models/system.models.js'; // Import the new model
 import { exec } from 'child_process';
+import bcryptjs from 'bcryptjs';
 
 // --- INTERFACE SETTINGS ---
 
@@ -67,6 +68,40 @@ export const getStaffUsers = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: "Failed to fetch users" });
+  }
+};
+
+export const createStaffUser = async (req, res) => {
+  try {
+    const { username, fullname, role, password } = req.body;
+
+    if (!username || !fullname || !password) {
+      return res.status(400).json({ success: false, message: "Username, fullname, and password are required" });
+    }
+
+    // Hash password using bcryptjs
+    const hashedPassword = await bcryptjs.hash(password, 10);
+
+    // Get role_id from role name
+    const roleMap = {
+      'Admin': 2,
+      'Super Admin': 1
+    };
+    const roleId = roleMap[role] || 2;
+
+    // Create staff user
+    const result = await SystemModel.createStaffUser({
+      username,
+      fullname,
+      password: hashedPassword,
+      roleId,
+      isActive: 1
+    });
+
+    res.json({ success: true, data: result, message: "Staff user created successfully" });
+  } catch (error) {
+    console.error('Create staff error:', error);
+    res.status(500).json({ success: false, message: error.message || "Failed to create staff user" });
   }
 };
 

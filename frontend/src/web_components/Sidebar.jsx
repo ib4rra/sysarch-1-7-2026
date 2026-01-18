@@ -9,7 +9,6 @@ const Sidebar = ({ activeTab, setActiveTab, onLogout }) => {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'pwd', label: 'Manage', icon: Database },
     { id: 'pwd-verify', label: 'Verify ID', icon: QrCode },
-    { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   return (
