@@ -296,6 +296,7 @@ export const createPwdAccount = async (req, res) => {
       guardian_contact,
       disability_type,
       cluster_group_no = 1, // Cluster number (default to 1)
+      cluster_group_area, // Cluster area letter (A, B, C, D)
     } = req.body;
 
     if (!firstname || !lastname || !sex || !birthdate || !civil_status || !address) {
@@ -307,8 +308,8 @@ export const createPwdAccount = async (req, res) => {
 
     // Create PWD user record in Nangka_PWD_user
     const [pwdResult] = await db.query(
-      `INSERT INTO Nangka_PWD_user (firstname, middlename, lastname, suffix, sex, birthdate, civil_status, address, contact_no, disability_type, guardian_name, guardian_contact, cluster_group_no, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+      `INSERT INTO Nangka_PWD_user (firstname, middlename, lastname, suffix, sex, birthdate, civil_status, address, contact_no, disability_type, guardian_name, guardian_contact, cluster_group_no, cluster_group_area, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
       [
         firstname,
         middlename || null,
@@ -323,6 +324,7 @@ export const createPwdAccount = async (req, res) => {
         guardian_name || null,
         guardian_contact || null,
         cluster_group_no,
+        cluster_group_area || null,
       ]
     );
 
