@@ -257,14 +257,13 @@ const VerifyIDView = () => {
   }, []);
 
   return (
-    <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
+    <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 border border-gray-400">
       <div className="text-center space-y-2">
         <h2 className="text-3xl font-black text-gray-800 uppercase tracking-tighter flex items-center justify-center gap-3">
           <ShieldCheck className="text-[#800000]" size={32} />
           Official ID Verification
         </h2>
         <p className="text-gray-500 max-w-lg mx-auto">Verify the authenticity of Barangay Nangka PWD Membership IDs through our secure system.</p>
-        <p className="text-gray-500 max-w-lg mx-auto text-red-500 font-bold">Gawan na ng backend itong verify ID, para ma integrate sa database natin!</p>
       </div>
 
       <div className="bg-gray-100 p-1 rounded-xl flex max-w-md mx-auto">
@@ -277,7 +276,7 @@ const VerifyIDView = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-        <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 space-y-6">
+        <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-300 space-y-6">
           {method === 'qr' ? (
             <div className="space-y-6">
               <div className="aspect-square bg-black rounded-xl overflow-hidden relative group">

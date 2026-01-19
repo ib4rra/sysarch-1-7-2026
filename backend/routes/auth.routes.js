@@ -80,5 +80,11 @@ router.post(
  */
 router.post('/refresh', verifyToken, AuthController.refreshToken);
 
+/**
+ * Change Password
+ * POST /auth/change-password
+ */
+router.post('/change-password', verifyToken, AuthController.changePassword);
+
 export default router;
 

@@ -34,6 +34,13 @@ function UserSettingsView({
             Ensure your account is using a long, random password to stay secure.
           </p>
 
+          {/* Success message */}
+          {passwordMessage?.type === "success" && (
+            <div className="mb-6 rounded-md bg-green-50 border border-green-200 p-4 text-green-700 text-sm">
+              {passwordMessage.text}
+            </div>
+          )}
+
           {/* Error message */}
           {passwordMessage?.type === "error" && (
             <div className="mb-6 rounded-md bg-red-50 border border-red-200 p-4 text-red-700 text-sm">
@@ -165,12 +172,15 @@ function UserSettingsView({
             {/* Save button */}
             <button
               type="submit"
-              disabled={passwordLoading}
+              disabled={passwordLoading || !passwordsMatch}
               className={`inline-flex items-center justify-center rounded-md px-8 py-3
                 text-white font-semibold text-sm
-                bg-red-800 hover:bg-red-900
+                transition
+                ${passwordLoading || !passwordsMatch
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-red-800 hover:bg-red-900'
+                }
                 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-700
-                transition disabled:cursor-not-allowed disabled:bg-gray-300
               `}
             >
               {passwordLoading ? "Saving..." : "Save Password"}

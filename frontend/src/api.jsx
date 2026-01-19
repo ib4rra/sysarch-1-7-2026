@@ -96,6 +96,19 @@ export const authAPI = {
       console.error("Logout error:", error);
     }
   },
+
+  /**
+   * Change Password
+   * @param {string} currentPassword - Current password
+   * @param {string} newPassword - New password
+   */
+  changePassword: async (currentPassword, newPassword) => {
+    const response = await API.post("/auth/change-password", {
+      currentPassword,
+      newPassword,
+    });
+    return response.data;
+  },
 };
 
 /**

@@ -629,3 +629,108 @@ export const getTestUsers = async (req, res) => {
   }
 };
 
+// ============================================
+// CHANGE PASSWORD
+// ============================================
+
+/**
+ * Change password for staff/admin and PWD users
+ * @route POST /auth/change-password
+ * @access Private (Authenticated users)
+ */
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.userId; // From token
+    const userType = req.userType; // From token ('staff' or 'pwd_user')
+    const pwdId = req.pwdId; // From token (for PWD users)
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password and new password are required',
+      });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 8 characters long',
+      });
+    }
+
+    let user = null;
+    let userIdToUpdate = null;
+    let isStaff = false;
+
+    // Check if it's a staff/admin user
+    if (userType !== 'pwd_user') {
+      const [staffUsers] = await db.query(
+        'SELECT person_id, password_hash FROM Person_In_Charge WHERE person_id = ?',
+        [userId]
+      );
+
+      if (staffUsers && staffUsers.length > 0) {
+        user = staffUsers[0];
+        userIdToUpdate = user.person_id;
+        isStaff = true;
+      }
+    } else {
+      // PWD user
+      const [pwdUsers] = await db.query(
+        'SELECT pwd_id, numeric_pwd_id, password_hash FROM pwd_user_login WHERE pwd_id = ? OR numeric_pwd_id = ?',
+        [pwdId || userId, userId]
+      );
+
+      if (pwdUsers && pwdUsers.length > 0) {
+        user = pwdUsers[0];
+        userIdToUpdate = user.pwd_id || user.numeric_pwd_id;
+        isStaff = false;
+      }
+    }
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Verify current password
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect',
+      });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password based on user type
+    if (isStaff) {
+      await db.query(
+        'UPDATE Person_In_Charge SET password_hash = ? WHERE person_id = ?',
+        [hashedPassword, userIdToUpdate]
+      );
+    } else {
+      // PWD user
+      await db.query(
+        'UPDATE pwd_user_login SET password_hash = ? WHERE pwd_id = ? OR numeric_pwd_id = ?',
+        [hashedPassword, userIdToUpdate, userIdToUpdate]
+      );
+    }
+
+    res.json({
+      success: true,
+      message: 'Password changed successfully',
+    });
+  } catch (err) {
+    console.error('Change password error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to change password',
+    });
+  }
+};

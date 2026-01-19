@@ -20,10 +20,17 @@ const ConfirmationModal = ({ isOpen, title, message, type = 'info', onConfirm, o
     },
     warning: {
       bg: 'bg-amber-50', icon: <AlertTriangle size={32} className="text-amber-600" />, btn: 'bg-amber-600 hover:bg-amber-700 text-white'
+    },
+    success: {
+      bg: 'bg-green-50', icon: <CheckCircle size={32} className="text-green-600" />, btn: 'bg-green-600 hover:bg-green-700 text-white'
+    },
+    error: {
+      bg: 'bg-red-50', icon: <AlertTriangle size={32} className="text-red-600" />, btn: 'bg-red-600 hover:bg-red-700 text-white'
     }
   };
 
   const currentStyle = styles[type] || styles.info;
+  const isSingleButton = type === 'success' || type === 'error';
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -36,20 +43,22 @@ const ConfirmationModal = ({ isOpen, title, message, type = 'info', onConfirm, o
           <p className="text-sm text-gray-500 font-medium leading-relaxed">
             {message}
           </p>
-          <div className="flex gap-3 w-full pt-4">
+          <div className={`flex ${isSingleButton ? 'w-full' : 'gap-3 w-full'} pt-4`}>
+            {!isSingleButton && (
+              <button 
+                onClick={onCancel}
+                disabled={isLoading}
+                className="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors text-sm"
+              >
+                Cancel
+              </button>
+            )}
             <button 
-              onClick={onCancel}
+              onClick={isSingleButton ? onCancel : onConfirm}
               disabled={isLoading}
-              className="flex-1 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors text-sm"
+              className={`${isSingleButton ? 'w-full' : 'flex-1'} py-3 font-bold rounded-xl transition-all shadow-lg active:scale-95 text-sm flex items-center justify-center gap-2 ${currentStyle.btn} disabled:opacity-50`}
             >
-              Cancel
-            </button>
-            <button 
-              onClick={onConfirm}
-              disabled={isLoading}
-              className={`flex-1 py-3 font-bold rounded-xl transition-all shadow-lg active:scale-95 text-sm flex items-center justify-center gap-2 ${currentStyle.btn} disabled:opacity-50`}
-            >
-              {isLoading ? 'Processing...' : 'Confirm'}
+              {isSingleButton ? 'Close' : (isLoading ? 'Processing...' : 'Confirm')}
             </button>
           </div>
         </div>
@@ -81,7 +90,7 @@ const ManageView = () => {
   const [localRecords, setLocalRecords] = useState([]); // Local state for records
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 20;
   
   const [showFormModal, setShowFormModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
@@ -108,6 +117,21 @@ const ManageView = () => {
   const [createConfirmOpen, setCreateConfirmOpen] = useState(false);
   const [pendingCreatePayload, setPendingCreatePayload] = useState(null);
   const [creatingLoading, setCreatingLoading] = useState(false);
+
+  // Success modal state
+  const [successModal, setSuccessModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'success'
+  });
+
+  const showSuccessModal = (title, message, type = 'success') => {
+    setSuccessModal({ isOpen: true, title, message, type });
+    if (type === 'success') {
+      setTimeout(() => setSuccessModal(prev => ({ ...prev, isOpen: false })), 3000);
+    }
+  };
 
   const [filterCriteria, setFilterCriteria] = useState({
     status: '',
@@ -160,12 +184,19 @@ const ManageView = () => {
     return val || '';
   };
 
-  // 4. FIX FOR BIRTHDATE: Convert ISO timestamp to YYYY-MM-DD
+  // 4. FIX FOR BIRTHDATE: Convert ISO timestamp to YYYY-MM-DD (without timezone conversion)
   const formatDateForInput = (dateString) => {
     if (!dateString) return '';
+    // If it's already in YYYY-MM-DD format, return as-is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return dateString;
+    // Parse ISO date string directly without timezone conversion
     const date = new Date(dateString);
-    if (isNaN(date.getTime())) return ''; 
-    return date.toISOString().split('T')[0];
+    if (isNaN(date.getTime())) return '';
+    // Get year, month, day in local timezone
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   // 5. Calculate Age dynamically
@@ -187,17 +218,17 @@ const ManageView = () => {
       firstName: r.firstName || r.firstname || r.FIRSTNAME || '',
       middleName: r.middleName || r.middlename || r.MIDDLENAME || '',
       lastName: r.lastName || r.lastname || r.LASTNAME || '',
-      // contact
-      contactNo: r.contactNo || r.contact_no || r.contact || 'N/A',
+      // contact - handle both camelCase and snake_case from backend
+      contactNo: r.contactNo || r.contact_no || r.contact || r.contactNumber || 'N/A',
       // id
       pwd_id: r.pwd_id || r.pwdId || r.id || r.PWD_ID || null,
       formattedPwdId: r.formattedPwdId || r.pwd_id || r.id || r.pwdId || null,
       // disability
       disabilityType: r.disabilityType || r.disability_type || r.disability || null,
       disabilityCause: r.disabilityCause || r.disability_cause || r.disability_cause_detail || null,
-      // guardian
-      guardian: r.guardian || r.guardian_name || r.guardianName || null,
-      guardianContact: r.guardianContact || r.guardian_contact || r.guardian_contact_no || null,
+      // guardian - handle both camelCase and snake_case from backend
+      guardian: r.guardian || r.guardian_name || r.guardianName || r.emergencyContact || null,
+      guardianContact: r.guardianContact || r.guardian_contact || r.guardian_contact_no || r.emergencyNumber || null,
       // cluster and status
       clusterGroupNo: r.clusterGroupNo || r.cluster_group_no || r.cluster || null,
       status: r.status || r.registration_status || r.registrationStatus || null,
@@ -205,8 +236,10 @@ const ManageView = () => {
       address: r.address || r.full_address || r.ADDRESS || '',
       hoa: r.hoa || r.hoa_name || r.homeowners || null,
       barangay: r.barangay || r.barangay_name || null,
-      // birthdate
+      // birthdate - handle dateOfBirth from backend
       birthdate: r.birthdate || r.birth_date || r.dateOfBirth || null,
+      // sex/gender
+      sex: r.sex || r.gender || 'Male',
     };
   };
 
@@ -387,9 +420,10 @@ const ManageView = () => {
       setCreateConfirmOpen(false);
       setPendingCreatePayload(null);
       setShowFormModal(false);
+      showSuccessModal('Citizen Registered', 'New PWD member has been successfully registered!', 'success');
     } catch (err) {
       console.error('Error creating record:', err);
-      alert('Error: ' + (err.response?.data?.message || err.message || 'Failed to create record'));
+      showSuccessModal('Registration Failed', err.response?.data?.message || err.message || 'Failed to create record', 'error');
     } finally {
       setCreatingLoading(false);
       setIsLoading(false);
@@ -452,14 +486,14 @@ const ManageView = () => {
           if (persistedRecord) {
             setLocalRecords(prev => prev.map(row => (row.pwd_id || row.id) === recordId ? persistedRecord : row));
             setShowFormModal(false);
-            alert('Record updated successfully!');
+            showSuccessModal('Record Updated', 'PWD profile has been successfully updated!', 'success');
           } else {
             throw new Error('Failed to verify update');
           }
         } catch (err) {
           console.error('Error updating record:', err);
           setError(err.message || 'Failed to update record');
-          alert('Error: ' + (err.message || 'Failed to update record'));
+          showSuccessModal('Update Failed', err.message || 'Failed to update record', 'error');
         } finally {
           setIsLoading(false);
         }
@@ -574,10 +608,22 @@ const ManageView = () => {
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
+      {successModal.isOpen && (
+        <ConfirmationModal
+          isOpen={successModal.isOpen}
+          title={successModal.title}
+          message={successModal.message}
+          type={successModal.type}
+          onConfirm={() => setSuccessModal(prev => ({ ...prev, isOpen: false }))}
+          onCancel={() => setSuccessModal(prev => ({ ...prev, isOpen: false }))}
+          isLoading={false}
+        />
+      )}
       {deleteConfirmOpen && (
         <ConfirmationModal
           isOpen={deleteConfirmOpen}
           title={"Delete Record?"}
+
           message={
             deletingRecord
               ? `Are you sure you want to delete ${deletingRecord.firstName || deletingRecord.firstname || ''} ${deletingRecord.lastName || deletingRecord.lastname || ''}? This action cannot be undone.`
@@ -678,7 +724,6 @@ const ManageView = () => {
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Citizen Records</h2>
           <p className="text-sm text-gray-500">Manage, verify, and print official PWD identification cards.</p>
-          <p className="text-sm text-red-500">1. Yung suffix dapat kahit wala yung user nakikita padin yung table, dapat naka N/A lang</p>
         </div>
         <div className="flex gap-2">
           <button 
@@ -696,7 +741,7 @@ const ManageView = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 flex flex-col md:flex-row gap-4 items-center no-print">
+      <div className="bg-white rounded-2xl border border-gray-300 shadow-sm p-4 flex flex-col md:flex-row gap-4 items-center no-print">
         <div className="relative flex-grow w-full md:max-w-md">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input 
@@ -704,14 +749,14 @@ const ManageView = () => {
             placeholder="Search by name or PWD ID..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/10 focus:border-[#800000] transition-all text-black placeholder-gray-400"
+            className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#800000]/10 focus:border-[#800000] transition-all text-black placeholder-gray-400"
           />
         </div>
         <div className="relative">
           <button 
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-all ${
-              showFilters ? 'bg-gray-100 border-[#800000] text-[#800000]' : 'bg-gray-50 border-gray-200 text-gray-600'
+              showFilters ? 'bg-gray-100 border-[#800000] text-[#800000]' : 'bg-gray-50 border-gray-300 text-gray-600'
             }`}
           >
             <Filter size={18} />
@@ -723,7 +768,7 @@ const ManageView = () => {
                <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Disability Type</label>
                   <select 
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-black"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-xs font-bold text-black"
                     value={filterCriteria.disabilityType}
                     onChange={(e) => setFilterCriteria({...filterCriteria, disabilityType: e.target.value})}
                   >
@@ -734,7 +779,7 @@ const ManageView = () => {
                <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</label>
                   <select 
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-black"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-xs font-bold text-black"
                     value={filterCriteria.status}
                     onChange={(e) => setFilterCriteria({...filterCriteria, status: e.target.value})}
                   >
@@ -747,7 +792,7 @@ const ManageView = () => {
                <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Cluster Group</label>
                   <select 
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-black"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-xs font-bold text-black"
                     value={filterCriteria.clusterGroupNo}
                     onChange={(e) => setFilterCriteria({...filterCriteria, clusterGroupNo: e.target.value})}
                   >
@@ -767,9 +812,9 @@ const ManageView = () => {
       </div>
 
      
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden no-print">
+      <div className="bg-white rounded-2xl border border-gray-300 shadow-sm overflow-hidden no-print">
         <div className="overflow-x-auto">
-          <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
+          <div className="overflow-x-auto rounded-2xl border border-gray-300 shadow-sm">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="bg-gradient-to-r from-[#800000]/10 to-red-50 border-b-2 border-[#800000]/20 sticky top-0 z-10">
@@ -811,14 +856,14 @@ const ManageView = () => {
         <td className="px-5 py-4 text-gray-700 whitespace-nowrap">{row.sex || <span className="text-gray-400">—</span>}</td>
         <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.birthdate ? new Date(row.birthdate).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : <span className="text-gray-400">—</span>}</td>
         <td className="px-5 py-4 text-gray-900 whitespace-nowrap text-sm">{row.age || <span className="text-gray-400">—</span>}</td>
-        <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.contact_no || row.contactNo || <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.contact_no || row.contactNo || row.contactNumber || <span className="text-gray-400">—</span>}</td>
         <td className="px-5 py-4 text-gray-700 whitespace-nowrap max-w-xs truncate text-xs">{row.address || <span className="text-gray-400">—</span>}</td>
         <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs font-medium">{row.hoa || <span className="text-gray-400">—</span>}</td>
         <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">{getDisabilityName(row.disability_type || row.disabilityType) || <span className="text-gray-400">—</span>}</td>
         <td className="px-5 py-4 text-gray-700 whitespace-nowrap max-w-xs truncate text-xs">{row.disability_cause || row.disabilityCause || <span className="text-gray-400">—</span>}</td>
         
         <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.guardian_name || row.guardianName || <span className="text-gray-400">—</span>}</td>
-        <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.guardian_contact || row.guardianContact || <span className="text-gray-400">—</span>}</td>
+        <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.guardian_contact || row.guardianContact || row.emergencyNumber || <span className="text-gray-400">—</span>}</td>
         <td className="px-5 py-4 text-gray-700 whitespace-nowrap text-xs">{row.registration_date ? new Date(row.registration_date).toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' }) : <span className="text-gray-400">—</span>}</td>
         <td className="px-5 py-4 text-gray-900 whitespace-nowrap font-medium text-xs">Group {row.cluster_group_no || row.clusterGroupNo || 'N/A'}</td>
         
@@ -854,7 +899,7 @@ const ManageView = () => {
               
               {/* 3. SHOW ONLY IF IDs MATCH */}
               {openMenuRowId === uniqueId && (
-                <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-300 rounded-xl shadow-lg z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                   <button 
                     onClick={() => { setSelectedRecord(row); setOpenMenuRowId(null); }} 
                     className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-red-50 hover:text-[#800000] flex items-center gap-3 border-b border-gray-100 transition-colors"
@@ -890,6 +935,46 @@ const ManageView = () => {
           </div>
         </div>
       </div>
+
+      {/* PAGINATION CONTROLS */}
+      {totalPages > 1 && (
+        <div className="bg-white rounded-2xl border border-gray-300 shadow-sm p-4 flex items-center justify-between no-print">
+          <div className="text-sm text-gray-600 font-semibold">
+            Showing <span className="text-[#800000] font-bold">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="text-[#800000] font-bold">{Math.min(currentPage * itemsPerPage, filteredRows.length)}</span> of <span className="text-[#800000] font-bold">{filteredRows.length}</span> records
+          </div>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              ← Previous
+            </button>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`w-10 h-10 rounded-lg font-bold text-sm transition-all ${
+                    currentPage === page 
+                      ? 'bg-[#800000] text-white shadow-lg' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+            </div>
+            <button 
+              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-bold text-sm hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* FORM MODAL */}
       {showFormModal && (
@@ -952,7 +1037,7 @@ const ManageView = () => {
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Contact Number</label>
-                    <input name="contactNo" type="tel" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.contactNo || editingRecord?.contact_no || ''} />
+                    <input name="contactNo" type="text" inputMode="numeric" maxLength="11" pattern="[0-9]{11}" className="w-full px-4 py-3 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black" defaultValue={editingRecord?.contactNo || editingRecord?.contact_no || editingRecord?.contactNumber || ''} placeholder="09xxxxxxxxx" required />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Cluster Group</label>
@@ -1081,9 +1166,13 @@ const ManageView = () => {
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Guardian Contact</label>
                     <input 
                       name="guardianContact" 
-                      type="tel" 
+                      type="text" 
+                      inputMode="numeric"
+                      maxLength="11"
+                      pattern="[0-9]{11}"
                       className="w-full px-4 py-4 bg-gray-200 border border-gray-300 rounded-xl text-sm font-bold text-black focus:outline-none focus:ring-2 focus:ring-green-500/10" 
-                      defaultValue={editingRecord?.guardianContact || editingRecord?.guardian_contact || ''} 
+                      defaultValue={editingRecord?.guardianContact || editingRecord?.guardian_contact || editingRecord?.emergencyNumber || ''}
+                      placeholder="09xxxxxxxxx"
                     />
                   </div>
                 </div>
@@ -1248,7 +1337,7 @@ const ManageView = () => {
                           </button>
                        </div>
                        <button onClick={handlePrint} className="w-full px-4 py-4 bg-[#800000] text-white rounded-xl font-bold uppercase flex items-center justify-center gap-2"><Printer size={18} /> Print ID</button>
-                       <button onClick={handleGenerateQr} disabled={!selectedRecord || isLoading} className="w-full px-4 py-4 bg-blue-700 text-white rounded-xl font-bold uppercase flex items-center justify-center gap-2">Generate QR</button>
+                      {/* <button onClick={handleGenerateQr} disabled={!selectedRecord || isLoading} className="w-full px-4 py-4 bg-blue-700 text-white rounded-xl font-bold uppercase flex items-center justify-center gap-2">Generate QR</button>*/}
                        <button onClick={handleSaveAndExit} className="w-full px-4 py-4 bg-green-700 text-white rounded-xl font-bold uppercase flex items-center justify-center gap-2"><Save size={18} /> Save & Exit</button>
                     </div>
                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
@@ -1283,7 +1372,7 @@ const ManageView = () => {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <InfoItem label="Age" value={viewRecord.age || 'N/A'} />
-                      <InfoItem label="Contact Number" value={viewRecord.contactNo || 'N/A'} />
+                      <InfoItem label="Contact Number" value={viewRecord.contactNo || viewRecord.contactNumber || 'N/A'} />
                     </div>
                     <InfoItem label="System ID" value={viewRecord.formattedPwdId || viewRecord.pwd_id || viewRecord.id || 'N/A'} mono />
                     {viewRecord && (
@@ -1293,7 +1382,7 @@ const ManageView = () => {
                           src={`http://localhost:5000/pwd/${encodeURIComponent(viewRecord.formattedPwdId || viewRecord.pwd_id || viewRecord.id || '')}/qr`}
                           alt="PWD ID QR"
                           onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(viewRecord.formattedPwdId || viewRecord.pwd_id || viewRecord.id || '')}`; }}
-                          className="w-32 h-32 object-contain border border-gray-200 rounded-md bg-white"
+                          className="w-32 h-32 object-contain border border-gray-300 rounded-md bg-white"
                         />
                       </div>
                     )}
@@ -1313,8 +1402,8 @@ const ManageView = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <InfoItem label="HOA" value={viewRecord.hoa || 'N/A'} />
                     <InfoItem label="Full Address" value={viewRecord.address || 'N/A'} />
-                    <InfoItem label="Guardian Name" value={viewRecord.guardian || 'N/A'} />
-                    <InfoItem label="Guardian Contact" value={viewRecord.guardianContact || 'N/A'} />
+                    <InfoItem label="Guardian Name" value={viewRecord.guardian || viewRecord.emergencyContact || 'N/A'} />
+                    <InfoItem label="Guardian Contact" value={viewRecord.guardianContact || viewRecord.emergencyNumber || 'N/A'} />
                   </div>
                 </section>
               </div>

@@ -5,7 +5,7 @@ const SuperAdminSidebar = ({ activeTab, setActiveTab, onLogout }) => {
   const menuItems = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'dashboard', label: 'System Overview', icon: Shield },
-    { id: 'manage', label: 'Manage PWD', icon: Users },
+    { id: 'manage', label: 'Manage Admin and PWD', icon: Users },
     { id: 'settings', label: 'System Settings', icon: Settings },
   ];
 

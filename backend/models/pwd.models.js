@@ -153,12 +153,12 @@ export const create = async (pwdData) => {
         hoa || null,
         address || '',
         barangay || 'Nangka',
-        contactNumber,
+        contactNumber || null,
         disabilityType || null,
         disabilityCause || null,
         registrationStatus || 'Active',
         emergencyContact || '',
-        emergencyNumber || '',
+        emergencyNumber || null,
         clusterGroupNo || 1,
       ]
     );

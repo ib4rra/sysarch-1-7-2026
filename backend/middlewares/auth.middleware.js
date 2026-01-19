@@ -56,11 +56,13 @@ export const verifyToken = (req, res, next) => {
       req.userId = decoded.id;
       req.userRoleId = decoded.role_id;
       req.userPermissions = decoded.permissions || [];
+      req.userType = 'staff';
     }
 
     // For PWD user tokens
     if (decoded.type === 'pwd_user') {
       req.pwdId = decoded.id;
+      req.userId = decoded.id;
       req.userType = 'pwd_user';
     }
 

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Header from "../../web_components/Header";
 import UserSidebar from "../../web_components/UserSidebar";
 import UserHomeView from "./UserHomeView";
-import { pwdUserAPI, pwdAdminAPI } from "../../api";
+import { pwdUserAPI, pwdAdminAPI, authAPI } from "../../api";
 import UserSettingsView from "./UserSettingsView";
 
 
@@ -151,11 +151,32 @@ function UserDashboard() {
     e.preventDefault();
     setPasswordLoading(true);
     try {
+      // Validation
+      if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+        setPasswordMessage({ type: "error", text: "All password fields are required" });
+        setPasswordLoading(false);
+        return;
+      }
+
+      if (passwordData.newPassword !== passwordData.confirmPassword) {
+        setPasswordMessage({ type: "error", text: "New passwords do not match" });
+        setPasswordLoading(false);
+        return;
+      }
+
+      if (passwordData.newPassword.length < 8) {
+        setPasswordMessage({ type: "error", text: "Password must be at least 8 characters long" });
+        setPasswordLoading(false);
+        return;
+      }
+
       // Call API to change password
-      const response = await pwdUserAPI.changePassword({
-        currentPassword: passwordData.currentPassword,
-        newPassword: passwordData.newPassword,
-      });
+      console.log('Attempting to change password...');
+      const response = await authAPI.changePassword(
+        passwordData.currentPassword,
+        passwordData.newPassword
+      );
+      console.log('Change password response:', response);
 
       setPasswordMessage({ type: "success", text: "Password changed successfully!" });
       setPasswordData({
@@ -167,6 +188,7 @@ function UserDashboard() {
       // Clear message after 3 seconds
       setTimeout(() => setPasswordMessage({ type: "", text: "" }), 3000);
     } catch (error) {
+      console.error('Change password error:', error);
       const errorMsg = error?.response?.data?.message || error?.message || "Failed to change password";
       setPasswordMessage({ type: "error", text: errorMsg });
     } finally {
