@@ -383,6 +383,7 @@ export const createRegistrant = async (req, res) => {
       disabilityCause,
       registrationStatus,
       clusterGroupNo,
+      clusterGroupArea,
     } = req.body;
 
     // allow staff identity from token if userId not supplied
@@ -421,6 +422,7 @@ export const createRegistrant = async (req, res) => {
       disabilityCause,
       registrationStatus,
       clusterGroupNo: clusterGroupNo || 1,
+      clusterGroupArea: clusterGroupArea || null,
     });
 
     // After creating the registrant, create PWD user login credentials

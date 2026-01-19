@@ -73,34 +73,34 @@ export async function initializeDatabase() {
     try {
       const areaDefinitions = [
         // Cluster 1
-        [1, 'A', 'Poblacion East'],
-        [1, 'B', 'Poblacion West'],
-        [1, 'C', 'Mira Verde'],
-        [1, 'D', 'Upper Nangka'],
+        [1, 'A', 'Nangka Centro'],
+        [1, 'B', 'Old J.P. Rizal & J.P. Rizal'],
+        [1, 'C', 'Marikit'],
+        [1, 'D', 'Permaline'],
         // Cluster 2
         [2, 'A', 'Twin River Subdivision & Bayabas Extension'],
-        [2, 'B', 'Barangay Hall Area'],
-        [2, 'C', 'Bulihan'],
-        [2, 'D', 'Sagana'],
+        [2, 'B', 'Camacho Phase 1 & 2'],
         // Cluster 3
-        [3, 'A', 'Bangkal'],
-        [3, 'B', 'Malanday East'],
-        [3, 'C', 'Malanday West'],
+        [3, 'A', 'Balubad Settlement Phase 1 & 2'],
+        [3, 'B', 'PIDAMANA'],
         // Cluster 4
-        [4, 'A', 'Concepcion'],
-        [4, 'B', 'Taytayan'],
-        [4, 'C', 'San Jose'],
+        [4, 'A', 'Area 1, 2, 3, & 4'],
+        [4, 'B', 'Twinville Subdivision part of Nangka'],
         // Cluster 5
-        [5, 'A', 'Nangka North'],
-        [5, 'B', 'Nangka South'],
+        [5, 'A', 'Greenland Phase 1 & 2'],
+        [5, 'B', 'Ateneo Ville'],
+        [5, 'C', 'Greenheights Phase 3 & 4'],
+        [5, 'D', 'St. Benedict & Jaybee Subdivision'],
         // Cluster 6
-        [6, 'A', 'Filemon Area'],
-        [6, 'B', 'Cristal Area'],
-        [6, 'C', 'De Luna'],
-        [6, 'D', 'Anastacia'],
+        [6, 'A', 'Libya Extension'],
+        [6, 'B', 'Bagong Silang'],
+        [6, 'C', 'St. Mary'],
+        [6, 'D', 'Hampstead'],
         // Cluster 7
-        [7, 'A', 'Industrial Area'],
-        [7, 'B', 'Commercial Area']
+        [7, 'A', 'Marikina Village'],
+        [7, 'B', 'Tierra Vista'],
+        [7, 'C', 'Anastacia'],
+        [7, 'D', 'Mira Verde']
       ];
 
       for (const [clusterNo, areaLetter, areaName] of areaDefinitions) {
@@ -113,6 +113,8 @@ export async function initializeDatabase() {
     } catch (err) {
       console.warn('⚠️ Could not insert cluster area definitions:', err.message);
     }
+
+
 
     console.log('✅ Database tables initialized');
     connection.release();

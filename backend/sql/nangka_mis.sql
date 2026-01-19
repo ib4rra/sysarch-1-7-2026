@@ -85,7 +85,7 @@ CREATE TABLE `beneficiary_claims` (
 --
 
 CREATE TABLE `disability_types` (
-  `disability_id` int(11) NOT NULL,
+  `disability_id` int(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `disability_name` varchar(100) NOT NULL,
   `description` text DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
@@ -111,12 +111,14 @@ INSERT INTO `disability_types` (`disability_id`, `disability_name`, `description
 --
 
 CREATE TABLE `disability_conditions` (
-  `condition_id` int(11) NOT NULL,
+  `condition_id` int(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `disability_id` int(11) NOT NULL,
   `condition_name` varchar(100) NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  FOREIGN KEY (`disability_id`) REFERENCES `disability_types`(`disability_id`) ON DELETE CASCADE
+  CONSTRAINT `fk_disability_conditions_disability_type` FOREIGN KEY (`disability_id`) REFERENCES `disability_types` (`disability_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
 
 --
 -- Dumping data for table `disability_conditions`
@@ -395,7 +397,6 @@ ALTER TABLE `beneficiary_claims`
 -- Indexes for table `disability_types`
 --
 ALTER TABLE `disability_types`
-  ADD PRIMARY KEY (`disability_id`),
   ADD UNIQUE KEY `disability_name` (`disability_name`);
 
 --
